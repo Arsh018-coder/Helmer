@@ -353,7 +353,7 @@ button:focus-visible, a:focus-visible {
   justify-content: space-between;
   gap: 24px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Navbar Top Rim Specular Glint */
@@ -2944,3 +2944,104 @@ button:focus-visible, a:focus-visible {
     transition: none !important;
   }
 }
+
+/* ============================================================
+   AUTHENTICATION STYLES & MICRO-ANIMATIONS
+   ============================================================ */
+
+@keyframes authSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes modalSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dropdownFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.auth-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(14, 124, 134, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: authSpin 0.7s linear infinite;
+}
+
+.auth-spinner-white {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: authSpin 0.7s linear infinite;
+}
+
+.auth-social-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-social-btn:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  filter: brightness(1.03);
+}
+
+.auth-social-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-btn-google:hover:not(:disabled) {
+  border-color: rgba(66, 133, 244, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(66, 133, 244, 0.12) !important;
+}
+
+.auth-btn-github:hover:not(:disabled) {
+  border-color: #58a6ff !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+.auth-user-btn {
+  transition: all 0.2s ease;
+}
+
+.auth-user-btn:hover {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: var(--accent-border) !important;
+  box-shadow: 0 2px 10px rgba(14, 124, 134, 0.15) !important;
+}
+
+.auth-nav-trigger {
+  transition: all 0.2s ease;
+}
+
+.auth-nav-trigger:hover {
+  background: var(--accent-tint) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 12px var(--accent-tint) !important;
+}
+
+.auth-profile-dropdown {
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+

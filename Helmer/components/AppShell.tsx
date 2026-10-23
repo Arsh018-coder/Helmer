@@ -23,6 +23,9 @@ import Navbar from '@/components/Navbar';
 import MascotRobot from '@/components/MascotRobot';
 import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
+import AuthModal from '@/components/modals/AuthModal';
+import ProfileDashboard from '@/components/ProfileDashboard';
+import { getCurrentUser, logout, type User } from '@/lib/auth';
 
 interface AppShellProps {
   route: string;
@@ -131,10 +134,24 @@ export default function AppShell({ route, id }: AppShellProps) {
   // Modals
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isRedirectModalOpen, setIsRedirectModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [redirectInstruction, setRedirectInstruction] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   // The signed steer link the QR encodes, so the "open" button carries the phone's token too.
   const [steerUrl, setSteerUrl] = useState<string>('');
+
+  // Authentication State
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    setUser(getCurrentUser());
+    const handleAuthChange = (e: Event) => {
+      const customEvent = e as CustomEvent<User | null>;
+      setUser(customEvent.detail ?? getCurrentUser());
+    };
+    window.addEventListener('helmer-auth-change', handleAuthChange);
+    return () => window.removeEventListener('helmer-auth-change', handleAuthChange);
+  }, []);
 
   // The recorded run the landing hero loops (feature F3). It is a real export of a real run, so
   // the hero plays with zero database access; when no recording is shipped the replay falls back
@@ -648,6 +665,12 @@ export default function AppShell({ route, id }: AppShellProps) {
         activeRunStatus={activeRun.status}
         navigateTo={navigateTo}
         onOpenQrModal={() => setIsQrModalOpen(true)}
+        user={user}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onSignOut={() => {
+          logout();
+          setUser(null);
+        }}
       />
 
       {/* ===================== PAGE: LANDING (/) ===================== */}
@@ -1902,6 +1925,17 @@ export default function AppShell({ route, id }: AppShellProps) {
         </div>
       )}
 
+      {/* ===================== PAGE: PROFILE (/profile) ===================== */}
+      {currentPath === '/profile' && (
+        <ProfileDashboard
+          user={user}
+          health={health}
+          runs={runs}
+          navigateTo={navigateTo}
+          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        />
+      )}
+
       {/* ===================== POPUPS & MODALS ===================== */}
 
       {/* ===================== POPUPS & MODALS ===================== */}
@@ -1920,6 +1954,12 @@ export default function AppShell({ route, id }: AppShellProps) {
         redirectInstruction={redirectInstruction}
         setRedirectInstruction={setRedirectInstruction}
         onSubmit={handleRedirect}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthenticated={(authenticatedUser) => setUser(authenticatedUser)}
       />
     </div>
   );
