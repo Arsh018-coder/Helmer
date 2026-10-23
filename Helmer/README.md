@@ -79,7 +79,7 @@ npm run db:deploy             # first machine on a fresh DB: npm run db:migrate
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `DATABASE_URL` | yes | Pooled Postgres connection used by the running app (port `6543`, `?pgbouncer=true`). |
+| `DATABASE_URL` | yes | Pooled Postgres connection used by the running app (port `6543`, `?pgbouncer=true`). Each Prisma process defaults to at most 5 connections and waits up to 20 seconds for a pool connection; existing `connection_limit` and `pool_timeout` URL values are preserved. |
 | `DIRECT_URL` | yes | Direct / session-pooler connection used by migrations (port `5432`). |
 | `ACCESS_CODE` | yes | Gate for the console and run creation; sent as the `X-Access-Code` header. |
 | `SECRET_KEY` | yes | HMAC key for the per-run share tokens used by the phone Steer page. |
