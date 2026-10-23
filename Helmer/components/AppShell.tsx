@@ -20,12 +20,14 @@ import {
   buildCryptographicEvents,
 } from '@/lib/initialRuns';
 import Navbar from '@/components/Navbar';
+import dynamic from 'next/dynamic';
 import MascotRobot from '@/components/MascotRobot';
-import QrModal from '@/components/modals/QrModal';
-import RedirectModal from '@/components/modals/RedirectModal';
-import DeliverableModal from '@/components/modals/DeliverableModal';
-import AuthModal from '@/components/modals/AuthModal';
-import ProfileDashboard from '@/components/ProfileDashboard';
+
+const QrModal = dynamic(() => import('@/components/modals/QrModal'), { ssr: false });
+const RedirectModal = dynamic(() => import('@/components/modals/RedirectModal'), { ssr: false });
+const DeliverableModal = dynamic(() => import('@/components/modals/DeliverableModal'), { ssr: false });
+const AuthModal = dynamic(() => import('@/components/modals/AuthModal'), { ssr: false });
+const ProfileDashboard = dynamic(() => import('@/components/ProfileDashboard'), { ssr: false });
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
 import { getProfileSettings } from '@/lib/profileSettings';
@@ -102,6 +104,7 @@ export default function AppShell({ route, id }: AppShellProps) {
   // Derive currentPath from the route prop so the conditional rendering below
   // behaves identically to the original currentPath state.
   const currentPath = id ? `${route}/${id}` : route;
+  const isLiveView = currentPath === '/console' || currentPath === '/steer' || currentPath.startsWith('/run') || currentPath.startsWith('/r/');
 
   // The run id the URL points at, when this is a run or steer page.
   const routeRunId = route === '/run' || route === '/r' ? id ?? '' : '';
@@ -230,7 +233,7 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   // Live run data (B4 wiring): the run view, the phone view and the replay all render this one
   // `AgentRun`, folded from the run's events by the shared reducer.
-  const live = useRun(activeRunId || null, { token: shareToken || null });
+  const live = useRun(isLiveView ? (activeRunId || null) : null, { token: shareToken || null });
   const baseRun = (live.run && live.events.length > 0)
     ? live.run
     : (runs.find((r) => r.id === activeRunId) ?? runs[0] ?? EMPTY_RUN);
@@ -343,14 +346,16 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   useEffect(() => {
     void loadRuns();
+    if (!isLiveView) return;
     const interval = setInterval(() => {
       void loadRuns();
-    }, 2500);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [loadRuns]);
+  }, [loadRuns, isLiveView]);
 
   // Health row (feature F2): a quiet line in the console, refreshed every 15 s.
   useEffect(() => {
+    if (!isLiveView) return;
     let cancelled = false;
     const read = async () => {
       try {
@@ -366,7 +371,7 @@ export default function AppShell({ route, id }: AppShellProps) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [currentPath]);
+  }, [currentPath, isLiveView]);
 
   // Keep the pause button in step with the status the server reports.
   useEffect(() => {
@@ -472,7 +477,7 @@ export default function AppShell({ route, id }: AppShellProps) {
     let cancelled = false;
     const load = async () => {
       try {
-        const response = await fetch('/fixtures/golden_run.json', { cache: 'no-store' });
+        const response = await fetch('/fixtures/golden_run.json', { cache: 'default' });
         if (!response.ok) return;
         const bundle = parseBundle(await response.text());
         const recorded = reduceEvents(bundle.runId, bundle.events, { status: 'completed' });

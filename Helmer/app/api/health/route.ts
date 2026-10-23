@@ -17,11 +17,15 @@ import { handleRoute } from '../../../server/http';
 export const dynamic = 'force-dynamic';
 
 /** How long the LLM ping may take before it is treated as unreachable. */
-const LLM_PING_TIMEOUT_MS = 3_000;
+const LLM_PING_TIMEOUT_MS = 1_200;
 
 async function dbReachable(): Promise<boolean> {
   try {
-    await db.$queryRaw`SELECT 1`;
+    const queryPromise = db.$queryRaw`SELECT 1`;
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('db timeout')), 1_200)
+    );
+    await Promise.race([queryPromise, timeoutPromise]);
     return true;
   } catch {
     return false;
