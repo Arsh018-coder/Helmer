@@ -50,6 +50,16 @@ export default function Navbar({
     }, 220);
   };
 
+  // Automatically open user account menu on returning from OAuth authentication
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('auth') === 'account' || params.get('auth') === 'success') {
+        setIsProfileOpen(true);
+      }
+    }
+  }, [user]);
+
   // Close profile dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

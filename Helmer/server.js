@@ -26,7 +26,7 @@ const __dirname = path.dirname(__filename);
 
 // Import passport configuration and auth routes
 import { configurePassport } from './config/passport.js';
-import authRoutes, { isLoggedIn } from './routes/authRoutes.js';
+import authRoutes, { isLoggedIn, logoutHandler } from './routes/authRoutes.js';
 
 const app = express();
 const PORT = process.env.EXPRESS_PORT || process.env.PORT || 5000;
@@ -83,34 +83,147 @@ configurePassport();
 // Authentication endpoints: /auth/google, /auth/google/callback, /auth/logout
 app.use('/auth', authRoutes);
 
+// Direct /logout route
+app.get('/logout', logoutHandler);
+
 /**
  * Public Root / Home Page
+ * Checks if req.isAuthenticated() is true:
+ * - If authenticated: displays welcome greeting using req.user.displayName, profile email/avatar, and a /logout link.
+ * - If not authenticated: displays Google OAuth login link (/auth/google).
  */
 app.get('/', (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated()) {
+    const user = req.user || {};
+    const displayName = user.displayName || 'Google User';
+    const email = user.email || '';
+    const avatar =
+      user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
+
     return res.send(`
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
         <head>
-          <title>Helmer Auth — Logged In</title>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Helmer — Welcome ${displayName}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b132b; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-            .card { background: #1c2541; padding: 32px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); text-align: center; max-width: 420px; }
-            img { width: 72px; height: 72px; border-radius: 50%; margin-bottom: 16px; border: 2px solid #48cae4; }
-            a { color: #48cae4; text-decoration: none; font-weight: bold; }
-            .btn { display: inline-block; padding: 10px 20px; margin-top: 16px; border-radius: 8px; background: #e63946; color: #fff; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background: radial-gradient(circle at 50% 15%, #1e293b 0%, #0b132b 100%);
+              color: #f8fafc;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              padding: 24px;
+            }
+            .card {
+              background: rgba(30, 41, 59, 0.75);
+              backdrop-filter: blur(16px);
+              -webkit-backdrop-filter: blur(16px);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              padding: 44px 36px;
+              border-radius: 20px;
+              box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+              text-align: center;
+              max-width: 440px;
+              width: 100%;
+              transition: transform 0.25s ease, box-shadow 0.25s ease;
+            }
+            .card:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 24px 48px -15px rgba(0, 0, 0, 0.7);
+            }
+            .avatar-container {
+              position: relative;
+              display: inline-block;
+              margin-bottom: 20px;
+            }
+            .avatar {
+              width: 92px;
+              height: 92px;
+              border-radius: 50%;
+              object-fit: cover;
+              border: 3px solid #38bdf8;
+              box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+              background: #0f172a;
+            }
+            .online-badge {
+              position: absolute;
+              bottom: 4px;
+              right: 4px;
+              width: 16px;
+              height: 16px;
+              background: #10b981;
+              border-radius: 50%;
+              border: 2px solid #1e293b;
+            }
+            h1 {
+              font-size: 24px;
+              font-weight: 700;
+              letter-spacing: -0.02em;
+              color: #ffffff;
+              margin-bottom: 8px;
+            }
+            .email {
+              color: #94a3b8;
+              font-size: 15px;
+              margin-bottom: 28px;
+              word-break: break-all;
+            }
+            .btn-logout {
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              width: 100%;
+              padding: 13px 24px;
+              border-radius: 12px;
+              background: #ef4444;
+              color: #ffffff;
+              text-decoration: none;
+              font-weight: 600;
+              font-size: 15px;
+              box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+              transition: all 0.2s ease;
+            }
+            .btn-logout:hover {
+              background: #dc2626;
+              transform: translateY(-1px);
+              box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+            }
+            .tag {
+              display: inline-block;
+              margin-top: 24px;
+              font-size: 12px;
+              color: #64748b;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+            }
           </style>
         </head>
         <body>
           <div class="card">
-            <img src="${req.user.avatar || 'https://api.dicebear.com/7.x/initials/svg?seed=' + req.user.displayName}" alt="Avatar" />
-            <h2>Welcome, ${req.user.displayName}!</h2>
-            <p style="color: #90e0ef;">Email: ${req.user.email}</p>
-            <p style="color: #888; font-size: 13px;">Google ID: ${req.user.googleId}</p>
-            <div style="margin-top: 20px;">
-              <a href="/profile" style="margin-right: 15px;">Go to Protected Profile →</a>
-              <a href="/auth/logout" class="btn">Log out</a>
+            <div class="avatar-container">
+              <img class="avatar" src="${avatar}" alt="${displayName}'s profile picture" />
+              <div class="online-badge" title="Active Session"></div>
             </div>
+            <h1>Welcome, ${displayName}!</h1>
+            <p class="email">${email}</p>
+            <a href="/logout" class="btn-logout" id="logout-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Log out
+            </a>
+            <div class="tag">Google OAuth 2.0 • Active Session</div>
           </div>
         </body>
       </html>
@@ -119,21 +232,102 @@ app.get('/', (req, res) => {
 
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
       <head>
-        <title>Helmer Auth — Google OAuth 2.0</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Helmer — Google OAuth 2.0</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b132b; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-          .card { background: #1c2541; padding: 36px; border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); text-align: center; max-width: 440px; }
-          .google-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; background: #fff; color: #1f2937; padding: 12px 24px; border-radius: 30px; font-weight: 600; text-decoration: none; margin-top: 24px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); transition: transform 0.2s; }
-          .google-btn:hover { transform: translateY(-2px); }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: radial-gradient(circle at 50% 15%, #1e293b 0%, #0b132b 100%);
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+          }
+          .card {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 44px 36px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            max-width: 440px;
+            width: 100%;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+          }
+          .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 24px 48px -15px rgba(0, 0, 0, 0.7);
+          }
+          .icon-badge {
+            width: 60px;
+            height: 60px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: #38bdf8;
+          }
+          h1 {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #ffffff;
+            margin-bottom: 12px;
+          }
+          p {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 28px;
+          }
+          .google-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: #ffffff;
+            color: #1e293b;
+            padding: 13px 28px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 15px;
+            text-decoration: none;
+            width: 100%;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+          }
+          .google-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+            background: #f8fafc;
+          }
         </style>
       </head>
       <body>
         <div class="card">
-          <h2 style="margin-top: 0;">Google OAuth 2.0 Service</h2>
-          <p style="color: #cbd5e1; font-size: 14px; line-height: 1.5;">Authenticate seamlessly using Google Passport Strategy and MongoDB session management.</p>
-          <a href="/auth/google" class="google-btn">
+          <div class="icon-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <h1>Google OAuth 2.0 Service</h1>
+          <p>Authenticate seamlessly using Google Passport Strategy and MongoDB session management.</p>
+          <a href="/auth/google" class="google-btn" id="google-login-btn">
             <svg width="18" height="18" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
               <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>

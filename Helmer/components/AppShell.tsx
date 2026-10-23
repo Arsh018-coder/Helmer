@@ -863,6 +863,58 @@ export default function AppShell({ route, id }: AppShellProps) {
             </div>
 
             <div className="container hero-content">
+              {user ? (
+                <div
+                  className="user-greeting-banner glass-panel"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '8px 16px',
+                    borderRadius: '30px',
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    backdropFilter: 'blur(16px)',
+                    border: '1px solid var(--accent-border)',
+                    boxShadow: '0 4px 18px rgba(11, 31, 58, 0.08)',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <img
+                    src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
+                    alt={user.name}
+                    style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--accent)' }}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                    Welcome, {user.name}!
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+                    ({user.email})
+                  </span>
+                  <a
+                    href="/logout"
+                    id="hero-logout-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      logout();
+                      setUser(null);
+                    }}
+                    style={{
+                      marginLeft: '6px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      color: 'var(--err)',
+                      padding: '4px 10px',
+                      borderRadius: '14px',
+                      background: 'var(--err-bg)',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    Log out
+                  </a>
+                </div>
+              ) : null}
+
               <div className="protocol-badge">
                 <img src="/logo.png" alt="Helmer" className="hero-badge-logo-img" />
                 <span className="badge-dot-green" aria-hidden="true"></span>
