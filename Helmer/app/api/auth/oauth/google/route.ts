@@ -1,26 +1,50 @@
 import { NextResponse } from 'next/server';
 import { authenticateWithOAuth } from '../../../../../server/userStore';
+import { generateOAuthState, getGoogleAuthUrl } from '../../../../../server/oauth';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const origin = url.origin;
+  const redirectUri = `${origin}/api/auth/oauth/callback/google`;
+  const state = generateOAuthState();
+
+  const googleAuthUrl = getGoogleAuthUrl(state, redirectUri);
+
+  if (googleAuthUrl) {
+    const response = NextResponse.redirect(googleAuthUrl);
+    response.cookies.set('oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 10 * 60, // 10 minutes
+    });
+    return response;
+  }
+
+  // If credentials are not yet configured in .env, redirect to interactive OAuth gateway
+  return NextResponse.redirect(`${origin}/auth/oauth-connect?provider=google&state=${state}`);
+}
+
 export async function POST(request: Request) {
   try {
-    let profile = {
-      email: 'alex.vance@gmail.com',
-      name: 'Alex Vance',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces',
-    };
+    const body = await request.json();
+    const { email, name, avatar } = body;
 
-    try {
-      const body = await request.json();
-      if (body.email) profile.email = body.email;
-      if (body.name) profile.name = body.name;
-      if (body.avatar) profile.avatar = body.avatar;
-    } catch {
-      // Use defaults if empty body
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return NextResponse.json({ ok: false, error: 'A valid Google email address is required.' }, { status: 400 });
     }
 
-    const { user, token } = authenticateWithOAuth('google', profile);
+    const userName = name?.trim() || email.split('@')[0];
+    const userAvatar = avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}&backgroundColor=0e7c86`;
+
+    const { user, token } = authenticateWithOAuth('google', {
+      email,
+      name: userName,
+      avatar: userAvatar,
+    });
 
     const response = NextResponse.json({ ok: true, user, token });
 

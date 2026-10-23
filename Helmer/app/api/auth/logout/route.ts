@@ -16,3 +16,18 @@ export async function POST() {
 
   return response;
 }
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const response = NextResponse.redirect(`${url.origin}/`);
+
+  response.cookies.set('helmer_session', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+
+  return response;
+}

@@ -92,40 +92,60 @@ export async function refreshUserSession(): Promise<User | null> {
   return getCurrentUser();
 }
 
-/** Sign in with Google via dynamic server OAuth endpoint */
-export async function loginWithGoogle(): Promise<User> {
-  const res = await fetch('/api/auth/oauth/google', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({}),
-  });
+/**
+ * Sign in with Google via dynamic OAuth 2.0 flow.
+ * If direct profile data is provided, authenticates via POST.
+ * Otherwise initiates standard OAuth redirect to /api/auth/oauth/google.
+ */
+export async function loginWithGoogle(profile?: { email: string; name?: string; avatar?: string }): Promise<User | void> {
+  if (profile && profile.email) {
+    const res = await fetch('/api/auth/oauth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(profile),
+    });
 
-  const data = await res.json();
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || 'Google authentication failed.');
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Google authentication failed.');
+    }
+
+    setCurrentUser(data.user, data.token);
+    return data.user;
   }
 
-  setCurrentUser(data.user, data.token);
-  return data.user;
+  if (typeof window !== 'undefined') {
+    window.location.href = '/api/auth/oauth/google';
+  }
 }
 
-/** Sign in with GitHub via dynamic server OAuth endpoint */
-export async function loginWithGithub(): Promise<User> {
-  const res = await fetch('/api/auth/oauth/github', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({}),
-  });
+/**
+ * Sign in with GitHub via dynamic OAuth 2.0 flow.
+ * If direct profile/username data is provided, authenticates via POST.
+ * Otherwise initiates standard OAuth redirect to /api/auth/oauth/github.
+ */
+export async function loginWithGithub(profile?: { username?: string; email?: string; name?: string }): Promise<User | void> {
+  if (profile && (profile.username || profile.email)) {
+    const res = await fetch('/api/auth/oauth/github', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(profile),
+    });
 
-  const data = await res.json();
-  if (!res.ok || !data.ok) {
-    throw new Error(data.error || 'GitHub authentication failed.');
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'GitHub authentication failed.');
+    }
+
+    setCurrentUser(data.user, data.token);
+    return data.user;
   }
 
-  setCurrentUser(data.user, data.token);
-  return data.user;
+  if (typeof window !== 'undefined') {
+    window.location.href = '/api/auth/oauth/github';
+  }
 }
 
 /**

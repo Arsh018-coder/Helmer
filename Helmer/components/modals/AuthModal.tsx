@@ -33,11 +33,12 @@ export default function AuthModal({
     setLoadingProvider('google');
     try {
       const user = await loginWithGoogle();
-      onAuthenticated(user);
-      onClose();
+      if (user) {
+        onAuthenticated(user);
+        onClose();
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to authenticate with Google.');
-    } finally {
       setLoadingProvider(null);
     }
   };
@@ -47,11 +48,12 @@ export default function AuthModal({
     setLoadingProvider('github');
     try {
       const user = await loginWithGithub();
-      onAuthenticated(user);
-      onClose();
+      if (user) {
+        onAuthenticated(user);
+        onClose();
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to authenticate with GitHub.');
-    } finally {
       setLoadingProvider(null);
     }
   };
