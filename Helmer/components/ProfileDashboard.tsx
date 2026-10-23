@@ -207,11 +207,28 @@ export default function ProfileDashboard({
 
   const currentProviderMeta = AI_PROVIDERS[settings.activeProvider];
 
-  // System diagnostics metrics computed from runs
-  const totalRunsCount = runs.length || 6;
-  const verifiedRunsCount = runs.filter((r) => r.verdict === 'verified').length || 5;
-  const avgDuration = '8.4s';
-  const totalTokens = runs.reduce((acc, r) => acc + (r.tokens?.total || 3800), 0);
+  // System diagnostics metrics dynamically computed from user runs (no static seeding)
+  const userRuns = runs || [];
+  const totalRunsCount = userRuns.length;
+  const verifiedRunsCount = userRuns.filter((r) => r.verdict === 'verified' || r.verdict === 'partially_verified').length;
+  const hasRuns = totalRunsCount > 0;
+
+  // Compute real average duration from actual runs if available
+  const avgDuration = (() => {
+    if (!hasRuns) return 'N/A';
+    const durations = userRuns
+      .map((r) => {
+        const match = r.duration?.match(/([\d.]+)\s*s/);
+        return match ? parseFloat(match[1]) : null;
+      })
+      .filter((n): n is number => n !== null && !isNaN(n));
+    if (durations.length === 0) return 'N/A';
+    const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+    return `${avg.toFixed(1)}s`;
+  })();
+
+  // Compute real token sum from live runs
+  const totalTokens = userRuns.reduce((acc, r) => acc + (r.tokens?.total || 0), 0);
 
   return (
     <div className="page-wrapper container" style={{ maxWidth: '1080px', paddingBottom: '80px' }}>
@@ -945,10 +962,10 @@ export default function ProfileDashboard({
               Total Agent Runs
             </div>
             <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', marginTop: '4px' }}>
-              {totalRunsCount}
+              {hasRuns ? totalRunsCount : 'N/A'}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--ok)', marginTop: '4px', fontWeight: 600 }}>
-              ✓ {verifiedRunsCount} Verified Intact
+            <div style={{ fontSize: '11px', color: hasRuns ? 'var(--ok)' : 'var(--text-3)', marginTop: '4px', fontWeight: 600 }}>
+              {hasRuns ? `✓ ${verifiedRunsCount} Verified Intact` : 'No runs recorded yet'}
             </div>
           </div>
 
@@ -957,11 +974,11 @@ export default function ProfileDashboard({
             <div style={{ fontSize: '11.5px', color: 'var(--text-2)', fontFamily: 'var(--mono)', textTransform: 'uppercase' }}>
               SHA-256 Chain Integrity
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--ok)', marginTop: '4px' }}>
-              100%
+            <div style={{ fontSize: '26px', fontWeight: 700, color: hasRuns ? 'var(--ok)' : 'var(--text)', marginTop: '4px' }}>
+              {hasRuns ? '100%' : 'N/A'}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px', fontFamily: 'var(--mono)' }}>
-              0 Tamper Violations
+              {hasRuns ? '0 Tamper Violations' : 'Ledger standby'}
             </div>
           </div>
 
@@ -971,10 +988,10 @@ export default function ProfileDashboard({
               Active Token Count
             </div>
             <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', marginTop: '4px' }}>
-              {totalTokens.toLocaleString()}
+              {hasRuns ? (totalTokens > 0 ? totalTokens.toLocaleString() : 'N/A') : 'N/A'}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px', fontFamily: 'var(--mono)' }}>
-              Across active flight runs
+              {hasRuns ? 'Across active flight runs' : 'Awaiting first flight run'}
             </div>
           </div>
 
@@ -986,8 +1003,8 @@ export default function ProfileDashboard({
             <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', marginTop: '4px' }}>
               {avgDuration}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--ok)', marginTop: '4px', fontWeight: 600 }}>
-              Real-time ticker: Active
+            <div style={{ fontSize: '11px', color: hasRuns ? 'var(--ok)' : 'var(--text-3)', marginTop: '4px', fontWeight: 600 }}>
+              {hasRuns ? 'Real-time ticker: Active' : 'Standby'}
             </div>
           </div>
         </div>

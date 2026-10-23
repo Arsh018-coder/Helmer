@@ -109,8 +109,8 @@ export default function AppShell({ route, id }: AppShellProps) {
   // The run id the URL points at, when this is a run or steer page.
   const routeRunId = route === '/run' || route === '/r' ? id ?? '' : '';
 
-  const [runs, setRuns] = useState<AgentRun[]>(INITIAL_RUNS);
-  const [selectedRunId, setSelectedRunId] = useState<string>('tx_883a90c1f');
+  const [runs, setRuns] = useState<AgentRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
   /**
    * The run this device is watching: the one in the URL, else the last one chosen from a list,
    * else the newest run. A `?t=` share token from the phone Steer link authorises it.
@@ -2647,40 +2647,60 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{r.id}</td>
-                    <td style={{ maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.goal}
-                    </td>
-                    <td>
-                      <span className="criteria-badge criteria-badge-pass" style={{ fontSize: '10px' }}>
-                        {r.verdict.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)' }}>{r.duration}</td>
-                    <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>{r.created_at}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn-pill btn-pill-secondary btn-pill-sm" onClick={() => { setSelectedRunId(r.id); navigateTo(`/run/${r.id}`); }}>
-                          Inspect
-                        </button>
-                        <button
-                          className="btn-pill btn-pill-secondary btn-pill-sm"
-                          onClick={() => {
-                            setSelectedRunId(r.id);
-                            navigateTo('/');
-                            setTimeout(() => {
-                              document.getElementById('replay')?.scrollIntoView({ behavior: 'smooth' });
-                            }, 100);
-                          }}
-                        >
-                          Replay
-                        </button>
+                {runs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-3)' }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-2)', marginBottom: '4px' }}>
+                        No flight runs recorded yet
                       </div>
+                      <div style={{ fontSize: '12px', marginBottom: '14px' }}>
+                        Launch your first autonomous goal run in the Console to generate audit trails and proofs.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-pill btn-pill-primary btn-pill-sm"
+                        onClick={() => navigateTo('/console')}
+                      >
+                        Go to Goal Composer →
+                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  runs.map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{r.id}</td>
+                      <td style={{ maxWidth: '340px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.goal}
+                      </td>
+                      <td>
+                        <span className="criteria-badge criteria-badge-pass" style={{ fontSize: '10px' }}>
+                          {r.verdict.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: 'var(--mono)' }}>{r.duration}</td>
+                      <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>{r.created_at}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button className="btn-pill btn-pill-secondary btn-pill-sm" onClick={() => { setSelectedRunId(r.id); navigateTo(`/run/${r.id}`); }}>
+                            Inspect
+                          </button>
+                          <button
+                            className="btn-pill btn-pill-secondary btn-pill-sm"
+                            onClick={() => {
+                              setSelectedRunId(r.id);
+                              navigateTo('/');
+                              setTimeout(() => {
+                                document.getElementById('replay')?.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
+                          >
+                            Replay
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
