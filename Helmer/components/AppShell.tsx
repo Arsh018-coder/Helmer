@@ -25,7 +25,7 @@ import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
 import AuthModal from '@/components/modals/AuthModal';
 import ProfileDashboard from '@/components/ProfileDashboard';
-import { getCurrentUser, logout, type User } from '@/lib/auth';
+import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
 import { getProfileSettings } from '@/lib/profileSettings';
 
 interface AppShellProps {
@@ -110,6 +110,10 @@ export default function AppShell({ route, id }: AppShellProps) {
     'Synthesize Q3 financial reports, reconcile multi-currency wire drift, and propose currency hedge allocations.'
   );
 
+  // API Provider & Key State (Phase 1)
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('gemini');
+  const [apiKey, setApiKey] = useState<string>('');
+
   // Live Run State
   const [isRunPaused, setIsRunPaused] = useState(false);
   const [isFaultInjected, setIsFaultInjected] = useState(false);
@@ -146,6 +150,9 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   useEffect(() => {
     setUser(getCurrentUser());
+    void refreshUserSession().then((verified) => {
+      if (verified) setUser(verified);
+    });
     const handleAuthChange = (e: Event) => {
       const customEvent = e as CustomEvent<User | null>;
       setUser(customEvent.detail ?? getCurrentUser());
@@ -193,6 +200,27 @@ export default function AppShell({ route, id }: AppShellProps) {
     const token = new URLSearchParams(window.location.search).get('t');
     if (token) setShareToken(token);
   }, []);
+
+  // Load API credentials from localStorage on mount (Phase 1)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedProvider = localStorage.getItem('helmer_api_provider') as 'gemini' | 'openai' | 'groq' | null;
+    const savedKey = localStorage.getItem('helmer_api_key');
+    if (savedProvider) setApiProvider(savedProvider);
+    if (savedKey) setApiKey(savedKey);
+  }, []);
+
+  // Save API provider to localStorage when changed (Phase 1)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('helmer_api_provider', apiProvider);
+  }, [apiProvider]);
+
+  // Save API key to localStorage when changed (Phase 1)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('helmer_api_key', apiKey);
+  }, [apiKey]);
 
   /** Reload the run list from the API; also called after a launch or a control action. */
   const loadRuns = useCallback(async () => {
@@ -245,8 +273,11 @@ export default function AppShell({ route, id }: AppShellProps) {
           const currentStepsCount = r.steps.length;
 
           // If we haven't completed all 5 steps yet, advance steps every ~3 seconds
+          // With 2.5s interval, this gives smoother progression
           if (currentStepsCount < 5 && currentSeconds % 3 === 0) {
-            const nextStepDef = CANONICAL_LIVE_STEPS[currentStepsCount];
+            // Use custom steps if available (for newly created runs), otherwise use canonical steps
+            const customSteps = createCustomLiveRun(r.goal).allSteps;
+            const nextStepDef = customSteps[currentStepsCount] || CANONICAL_LIVE_STEPS[currentStepsCount];
             if (nextStepDef) {
               const updatedSteps = [
                 ...r.steps.map((s, idx) =>
@@ -311,7 +342,7 @@ export default function AppShell({ route, id }: AppShellProps) {
           };
         })
       );
-    }, 1000);
+    }, 2500);  // 2.5s interval for smoother step progression (Phase 1)
 
     return () => clearInterval(timer);
   }, [activeRunId, activeRun.status, isRunPaused, isFaultInjected]);
@@ -1478,6 +1509,36 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </span>
               </div>
 
+              {/* API Provider Settings (Phase 1) */}
+              <div className="form-group">
+                <label className="form-label">LLM Provider & API Key</label>
+                <div className="glass-panel" style={{ padding: '16px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                    <select
+                      className="form-select"
+                      value={apiProvider}
+                      onChange={(e) => setApiProvider(e.target.value as any)}
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: '12px' }}
+                    >
+                      <option value="gemini">Gemini 2.5 Flash</option>
+                      <option value="openai">OpenAI GPT-4o</option>
+                      <option value="groq">Groq Llama 3</option>
+                    </select>
+                  </div>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter your API key (saved to browser storage)"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: '12px' }}
+                  />
+                  <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                    🔒 Key stored securely in localStorage. Never sent to our servers.
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '28px', flexWrap: 'wrap', gap: '14px' }}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>
                   CONFINEMENT: gVisor · WAL SQLite
@@ -1859,10 +1920,43 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               </div>
 
-              {/* Chaos Menu: Break this tool */}
+              {/* Chaos Mode: Break Tool (Phase 1 - Prominent) */}
+              <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: isFaultInjected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 214, 10, 0.08)', border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 214, 10, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 600, color: isFaultInjected ? 'var(--err)' : 'var(--warn)' }}>
+                    ⚡ CHAOS MODE
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-2)' }}>
+                    {isFaultInjected ? 'FAULT INJECTED · RECOVERING' : 'READY TO INJECT'}
+                  </span>
+                </div>
+                <button
+                  className="btn-pill"
+                  onClick={() => handleBreakTool('tool::sec_edgar_crawler')}
+                  disabled={isFaultInjected}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    background: isFaultInjected ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 214, 10, 0.15)',
+                    border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 214, 10, 0.3)',
+                    color: isFaultInjected ? 'var(--err)' : 'var(--warn)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: isFaultInjected ? 'not-allowed' : 'pointer',
+                    opacity: isFaultInjected ? 0.6 : 1
+                  }}
+                >
+                  {isFaultInjected ? '⚠ FAULT ACTIVE · WATCH RECOVERY' : '⚡ BREAK TOOL (INJECT FAULT)'}
+                </button>
+                <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                  Simulates RPC timeout → triggers Rung 2 recovery
+                </div>
+              </div>
+
+              {/* Chaos Menu: Break this tool (Legacy - kept for additional options) */}
               <div>
                 <div className="panel-title-mono" style={{ marginBottom: '8px' }}>
-                  <span>Chaos Mode Injection</span>
+                  <span>Additional Tools</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <button className="btn-pill btn-pill-secondary btn-pill-sm" style={{ justifyContent: 'space-between' }} onClick={() => handleBreakTool('search_web')}>

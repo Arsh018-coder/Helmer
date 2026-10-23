@@ -1,7 +1,15 @@
 /**
- * lib/auth.ts — client-side authentication system for Helmer.
- * Supports Google OAuth, GitHub OAuth, and Email/Password credentials,
- * with session persistence and reactive state synchronization.
+ * lib/auth.ts — Dynamic Client Authentication SDK for Helmer.
+ * Connects directly to backend authentication endpoints:
+ * - /api/auth/login
+ * - /api/auth/register
+ * - /api/auth/session
+ * - /api/auth/logout
+ * - /api/auth/oauth/google
+ * - /api/auth/oauth/github
+ *
+ * Persists session tokens in secure HTTP-only cookies and localStorage,
+ * with reactive multi-tab event synchronization.
  */
 
 export interface User {
@@ -12,12 +20,13 @@ export interface User {
   provider: 'google' | 'github' | 'credentials';
   role: 'operator' | 'admin' | 'viewer';
   createdAt: string;
+  lastLoginAt?: string;
 }
 
 const STORAGE_KEY = 'helmer_auth_user';
-const ACCOUNTS_STORAGE_KEY = 'helmer_user_accounts';
+const TOKEN_KEY = 'helmer_auth_token';
 
-/** Read current user from localStorage safely in the browser. */
+/** Read current user from localStorage cache for instant render */
 export function getCurrentUser(): User | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -28,62 +37,100 @@ export function getCurrentUser(): User | null {
   }
 }
 
-/** Store or clear the active user session. */
-export function setCurrentUser(user: User | null): void {
+/** Store or clear the active user session in client storage */
+export function setCurrentUser(user: User | null, token?: string): void {
   if (typeof window === 'undefined') return;
   try {
     if (user) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      if (token) localStorage.setItem(TOKEN_KEY, token);
     } else {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
     }
-    // Dispatch a custom event so all open tabs and components react immediately
+    // Broadcast auth change event to all components & tabs
     window.dispatchEvent(new CustomEvent('helmer-auth-change', { detail: user }));
   } catch {
-    // LocalStorage quota or access issue
+    // Quota or storage restrictions handled
   }
 }
 
-/** Sign in with Google simulation / OAuth. */
-export async function loginWithGoogle(): Promise<User> {
-  // Realistic network latency simulation
-  await new Promise((resolve) => setTimeout(resolve, 600));
-
-  const user: User = {
-    id: 'usr_g_' + Math.random().toString(36).substring(2, 9),
-    name: 'Alex Vance',
-    email: 'alex.vance@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces',
-    provider: 'google',
-    role: 'operator',
-    createdAt: new Date().toISOString(),
-  };
-
-  setCurrentUser(user);
-  return user;
+/** Get stored auth token if present */
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-/** Sign in with GitHub simulation / OAuth. */
+/** Dynamically verify the current session with the backend */
+export async function refreshUserSession(): Promise<User | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/auth/session', {
+      method: 'GET',
+      headers,
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.ok && data.user) {
+        setCurrentUser(data.user);
+        return data.user;
+      }
+    }
+  } catch {
+    // Server or network unavailable, fall back to cached user
+  }
+  return getCurrentUser();
+}
+
+/** Sign in with Google via dynamic server OAuth endpoint */
+export async function loginWithGoogle(): Promise<User> {
+  const res = await fetch('/api/auth/oauth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({}),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Google authentication failed.');
+  }
+
+  setCurrentUser(data.user, data.token);
+  return data.user;
+}
+
+/** Sign in with GitHub via dynamic server OAuth endpoint */
 export async function loginWithGithub(): Promise<User> {
-  // Realistic network latency simulation
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  const res = await fetch('/api/auth/oauth/github', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({}),
+  });
 
-  const user: User = {
-    id: 'usr_gh_' + Math.random().toString(36).substring(2, 9),
-    name: 'devx-operator',
-    email: 'operator@github.com',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces',
-    provider: 'github',
-    role: 'admin',
-    createdAt: new Date().toISOString(),
-  };
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'GitHub authentication failed.');
+  }
 
-  setCurrentUser(user);
-  return user;
+  setCurrentUser(data.user, data.token);
+  return data.user;
 }
 
 /**
  * Sign in or sign up with email and password credentials.
+ * Dispatches to /api/auth/register or /api/auth/login.
  */
 export async function loginWithCredentials(
   email: string,
@@ -91,91 +138,44 @@ export async function loginWithCredentials(
   isSignUp: boolean,
   name?: string
 ): Promise<User> {
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  const endpoint = isSignUp ? '/api/auth/register' : '/api/auth/login';
+  const payload = isSignUp ? { email, password, name } : { email, password };
 
-  const trimmedEmail = email.trim().toLowerCase();
-  if (!trimmedEmail || !trimmedEmail.includes('@')) {
-    throw new Error('Please enter a valid email address.');
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || (isSignUp ? 'Registration failed.' : 'Invalid credentials.'));
   }
 
-  if (!password || password.length < 6) {
-    throw new Error('Password must be at least 6 characters long.');
-  }
-
-  // Load existing registered accounts from localStorage
-  let accounts: Record<string, { name: string; passwordHash: string }> = {};
-  try {
-    const rawAccounts = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    if (rawAccounts) accounts = JSON.parse(rawAccounts);
-  } catch {}
-
-  if (isSignUp) {
-    const userName = name?.trim() || trimmedEmail.split('@')[0];
-    accounts[trimmedEmail] = { name: userName, passwordHash: password };
-    try {
-      localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
-    } catch {}
-
-    const newUser: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 9),
-      name: userName,
-      email: trimmedEmail,
-      provider: 'credentials',
-      role: 'operator',
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(newUser);
-    return newUser;
-  }
-
-  // Sign In verification
-  const existing = accounts[trimmedEmail];
-  if (existing) {
-    if (existing.passwordHash !== password) {
-      throw new Error('Incorrect password. Please try again.');
-    }
-    const user: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 9),
-      name: existing.name,
-      email: trimmedEmail,
-      provider: 'credentials',
-      role: 'operator',
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(user);
-    return user;
-  }
-
-  // If no previous account exists for this email, allow first-time instant login
-  const defaultName = name?.trim() || trimmedEmail.split('@')[0];
-  const user: User = {
-    id: 'usr_' + Math.random().toString(36).substring(2, 9),
-    name: defaultName,
-    email: trimmedEmail,
-    provider: 'credentials',
-    role: 'operator',
-    createdAt: new Date().toISOString(),
-  };
-  setCurrentUser(user);
-  return user;
+  setCurrentUser(data.user, data.token);
+  return data.user;
 }
 
-/** Demo operator account for 1-click evaluation. */
+/** Quick Demo Operator Account authenticated via server endpoint */
 export async function loginAsDemo(): Promise<User> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const demoUser: User = {
-    id: 'usr_demo_01',
-    name: 'Lead Operator',
-    email: 'lead.operator@helmer.ai',
-    provider: 'credentials',
-    role: 'admin',
-    createdAt: new Date().toISOString(),
-  };
-  setCurrentUser(demoUser);
-  return demoUser;
+  try {
+    return await loginWithCredentials('lead.operator@helmer.ai', 'Operator123!', false);
+  } catch {
+    // If user record needs re-creation, fall back to registration
+    return await loginWithCredentials('lead.operator@helmer.ai', 'Operator123!', true, 'Lead Operator');
+  }
 }
 
-/** Sign out the active user. */
-export function logout(): void {
+/** Sign out the active user via server endpoint and clear local session */
+export async function logout(): Promise<void> {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    // Silent fail on network
+  }
   setCurrentUser(null);
 }
