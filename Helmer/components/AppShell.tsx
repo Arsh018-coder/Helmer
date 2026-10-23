@@ -249,17 +249,44 @@ export default function AppShell({ route, id }: AppShellProps) {
     : (runs.find((r) => r.id === activeRunId) ?? runs[0] ?? EMPTY_RUN);
 
   // Merge redirect steps from local state with live run data
+  const isPausedFromAnySource =
+    isRunPaused ||
+    live.status === 'paused' ||
+    live.run?.status === 'paused' ||
+    baseRun.status === 'paused';
+
   const activeRun = (() => {
     const redirectData = redirectSteps[activeRunId || ''];
-    if (!redirectData) return baseRun;
+    const mergedStatus = isPausedFromAnySource
+      ? ('paused' as const)
+      : baseRun.status;
+
+    const runWithStatus = {
+      ...baseRun,
+      status: mergedStatus,
+    };
+
+    if (!redirectData) return runWithStatus;
 
     return {
-      ...baseRun,
-      steps: [...baseRun.steps, redirectData.step],
-      criteria: [...baseRun.criteria, redirectData.criterion],
-      plan: [...baseRun.plan, redirectData.planStep],
+      ...runWithStatus,
+      steps: [...runWithStatus.steps, redirectData.step],
+      criteria: [...runWithStatus.criteria, redirectData.criterion],
+      plan: [...runWithStatus.plan, redirectData.planStep],
     };
   })();
+
+  const effectiveIsPaused = isPausedFromAnySource || activeRun.status === 'paused';
+
+  // A run is steerable (can be paused/resumed/stopped/redirected) ONLY IF:
+  // 1. It is the most recent (latest) run in the system, AND
+  // 2. It has not already finished with a terminal status (completed, stopped, failed).
+  const isMostRecentRun = runs.length === 0 || activeRun.id === runs[0]?.id;
+  const isRunTerminal =
+    activeRun.status === 'completed' ||
+    activeRun.status === 'stopped' ||
+    activeRun.status === 'failed';
+  const isLiveSteerable = isMostRecentRun && !isRunTerminal;
 
   // The landing hero prefers the shipped recording so it plays offline; every other screen shows
   // the live run.
@@ -385,12 +412,12 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   // Keep the pause button in step with the status the server reports.
   useEffect(() => {
-    if (activeRun.status === 'paused') {
+    if (activeRun.status === 'paused' || live.status === 'paused' || live.run?.status === 'paused') {
       setIsRunPaused(true);
-    } else if (activeRun.status === 'running') {
+    } else if (activeRun.status === 'running' && live.status === 'running') {
       setIsRunPaused(false);
     }
-  }, [activeRun.status]);
+  }, [activeRun.status, live.status, live.run?.status]);
 
   // Real-time live execution ticker for the active run (fallback when backend is not streaming events)
   useEffect(() => {
@@ -738,7 +765,7 @@ export default function AppShell({ route, id }: AppShellProps) {
   /** Pause or resume the live run; toggles between pause and resume. */
   const handlePauseToggle = async () => {
     if (!activeRunId) return;
-    const nextPaused = !isRunPaused;
+    const nextPaused = !effectiveIsPaused;
     setIsRunPaused(nextPaused);
     setRuns((prev) =>
       prev.map((r) =>
@@ -2434,52 +2461,95 @@ export default function AppShell({ route, id }: AppShellProps) {
             </div>
 
             {/* Right Column: Control & Flight Recorder */}
+            {/* Right Column: Control & Flight Recorder */}
             <div className="glass-panel run-control-panel">
               <div className="panel-title-mono">
-                <span>3. Live Steering & Controls</span>
-                <span style={{ fontSize: '10px', color: 'var(--accent)' }}>E-STOP READY</span>
+                <span>{isLiveSteerable ? '3. Live Steering & Controls' : '3. Flight Recorder & Audit'}</span>
+                <span style={{ fontSize: '10px', color: isLiveSteerable ? 'var(--accent)' : 'var(--ok)' }}>
+                  {isLiveSteerable ? 'E-STOP READY' : 'ARCHIVED SNAPSHOT'}
+                </span>
               </div>
 
-              {/* Pause & Stop Buttons */}
-              <div className="control-buttons-row">
-                <button
-                  className="btn-pill btn-pill-secondary btn-pill-sm"
-                  onClick={handlePauseToggle}
-                  style={{ color: isRunPaused ? 'var(--ok)' : 'inherit' }}
-                >
-                  {isRunPaused ? '▶ Resume' : '⏸ Pause'}
-                </button>
-                <button
-                  className="estop-button"
-                  style={{ fontSize: '11px', padding: '6px 12px' }}
-                  onClick={handleStop}
-                >
-                  E-STOP (12ms)
-                </button>
-              </div>
+              {isLiveSteerable ? (
+                <>
+                  {/* Pause & Stop Buttons */}
+                  <div className="control-buttons-row">
+                    <button
+                      className="btn-pill btn-pill-secondary btn-pill-sm"
+                      onClick={handlePauseToggle}
+                      style={{
+                        color: effectiveIsPaused ? 'var(--ok)' : 'inherit',
+                        borderColor: effectiveIsPaused ? 'rgba(52, 199, 89, 0.45)' : undefined,
+                        background: effectiveIsPaused ? 'rgba(52, 199, 89, 0.12)' : undefined,
+                        fontWeight: effectiveIsPaused ? 600 : undefined,
+                      }}
+                    >
+                      {effectiveIsPaused ? '▶ Resume' : '⏸ Pause'}
+                    </button>
+                    <button
+                      className="estop-button"
+                      style={{ fontSize: '11px', padding: '6px 12px' }}
+                      onClick={handleStop}
+                    >
+                      E-STOP (12ms)
+                    </button>
+                  </div>
 
-              <button
-                className="btn-pill btn-pill-secondary btn-pill-sm"
-                style={{ width: '100%' }}
-                onClick={() => setIsRedirectModalOpen(true)}
-              >
-                ↳ Redirect Working Instruction
-              </button>
+                  <button
+                    className="btn-pill btn-pill-secondary btn-pill-sm"
+                    style={{ width: '100%' }}
+                    onClick={() => setIsRedirectModalOpen(true)}
+                  >
+                    ↳ Redirect Working Instruction
+                  </button>
 
-              {/* Drift Meter */}
-              <div className="drift-meter-box">
-                <div className="drift-meter-header">
-                  <span>DRIFT GUARD (SCORE: {activeRun.driftScore})</span>
-                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>NOMINAL</span>
+                  {/* Drift Meter */}
+                  <div className="drift-meter-box">
+                    <div className="drift-meter-header">
+                      <span>DRIFT GUARD (SCORE: {activeRun.driftScore})</span>
+                      <span style={{ color: 'var(--ok)', fontWeight: 600 }}>NOMINAL</span>
+                    </div>
+                    {/* SVG Sparkline */}
+                    <svg className="drift-sparkline" viewBox="0 0 200 40">
+                      <rect x="0" y="0" width="200" height="20" fill="rgba(48, 209, 88, 0.08)" />
+                      <line x1="0" y1="20" x2="200" y2="20" stroke="rgba(48, 209, 88, 0.3)" strokeDasharray="2 4" />
+                      <path d="M 0 10 Q 50 12, 90 8 T 150 11 T 200 7" fill="none" stroke="var(--ok)" strokeWidth="2" />
+                      <circle cx="200" cy="7" r="4" fill="var(--ok)" />
+                    </svg>
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: 'rgba(255, 255, 255, 0.035)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  marginBottom: '10px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      INSPECTION ARCHIVE
+                    </span>
+                    <span style={{
+                      fontFamily: 'var(--mono)',
+                      fontSize: '9.5px',
+                      padding: '2px 8px',
+                      borderRadius: '100px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      color: 'var(--text-2)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                    }}>
+                      READ-ONLY
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.4 }}>
+                    Historical execution snapshot sealed in tamper-evident ledger. Steering controls (Pause, Resume, E-Stop, Redirect) are disabled for archived runs.
+                  </div>
                 </div>
-                {/* SVG Sparkline */}
-                <svg className="drift-sparkline" viewBox="0 0 200 40">
-                  <rect x="0" y="0" width="200" height="20" fill="rgba(48, 209, 88, 0.08)" />
-                  <line x1="0" y1="20" x2="200" y2="20" stroke="rgba(48, 209, 88, 0.3)" strokeDasharray="2 4" />
-                  <path d="M 0 10 Q 50 12, 90 8 T 150 11 T 200 7" fill="none" stroke="var(--ok)" strokeWidth="2" />
-                  <circle cx="200" cy="7" r="4" fill="var(--ok)" />
-                </svg>
-              </div>
+              )}
 
               {/* Budget Bars */}
               <div>
@@ -2518,55 +2588,58 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               </div>
 
-              {/* Chaos Mode: Break Tool (Phase 1 - Prominent) */}
-              <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: isFaultInjected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 214, 10, 0.08)', border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 214, 10, 0.25)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 600, color: isFaultInjected ? 'var(--err)' : 'var(--warn)' }}>
-                    ⚡ CHAOS MODE
-                  </span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-2)' }}>
-                    {isFaultInjected ? 'FAULT INJECTED · RECOVERING' : 'READY TO INJECT'}
-                  </span>
-                </div>
-                <button
-                  className="btn-pill"
-                  onClick={() => handleBreakTool('tool::sec_edgar_crawler')}
-                  disabled={isFaultInjected}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    background: isFaultInjected ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 214, 10, 0.15)',
-                    border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 214, 10, 0.3)',
-                    color: isFaultInjected ? 'var(--err)' : 'var(--warn)',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: isFaultInjected ? 'not-allowed' : 'pointer',
-                    opacity: isFaultInjected ? 0.6 : 1
-                  }}
-                >
-                  {isFaultInjected ? '⚠ FAULT ACTIVE · WATCH RECOVERY' : '⚡ BREAK TOOL (INJECT FAULT)'}
-                </button>
-                <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-                  Simulates RPC timeout → triggers Rung 2 recovery
-                </div>
-              </div>
+              {/* Chaos Mode / Break tool is only active if run is live and steerable */}
+              {isLiveSteerable && (
+                <>
+                  <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: isFaultInjected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 214, 10, 0.08)', border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 214, 10, 0.25)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 600, color: isFaultInjected ? 'var(--err)' : 'var(--warn)' }}>
+                        ⚡ CHAOS MODE
+                      </span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-2)' }}>
+                        {isFaultInjected ? 'FAULT INJECTED · RECOVERING' : 'READY TO INJECT'}
+                      </span>
+                    </div>
+                    <button
+                      className="btn-pill"
+                      onClick={() => handleBreakTool('tool::sec_edgar_crawler')}
+                      disabled={isFaultInjected}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: isFaultInjected ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 214, 10, 0.15)',
+                        border: isFaultInjected ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 214, 10, 0.3)',
+                        color: isFaultInjected ? 'var(--err)' : 'var(--warn)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: isFaultInjected ? 'not-allowed' : 'pointer',
+                        opacity: isFaultInjected ? 0.6 : 1
+                      }}
+                    >
+                      {isFaultInjected ? '⚠ FAULT ACTIVE · WATCH RECOVERY' : '⚡ BREAK TOOL (INJECT FAULT)'}
+                    </button>
+                    <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                      Simulates RPC timeout → triggers Rung 2 recovery
+                    </div>
+                  </div>
 
-              {/* Chaos Menu: Break this tool (Legacy - kept for additional options) */}
-              <div>
-                <div className="panel-title-mono" style={{ marginBottom: '8px' }}>
-                  <span>Additional Tools</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <button className="btn-pill btn-pill-secondary btn-pill-sm" style={{ justifyContent: 'space-between' }} onClick={() => handleBreakTool('search_web')}>
-                    <span>Break search_web</span>
-                    <span style={{ color: 'var(--err)', fontSize: '10px' }}>INJECT</span>
-                  </button>
-                  <button className="btn-pill btn-pill-secondary btn-pill-sm" style={{ justifyContent: 'space-between' }} onClick={() => handleBreakTool('fetch_page')}>
-                    <span>Break fetch_page</span>
-                    <span style={{ color: 'var(--err)', fontSize: '10px' }}>INJECT</span>
-                  </button>
-                </div>
-              </div>
+                  <div>
+                    <div className="panel-title-mono" style={{ marginBottom: '8px' }}>
+                      <span>Additional Tools</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <button className="btn-pill btn-pill-secondary btn-pill-sm" style={{ justifyContent: 'space-between' }} onClick={() => handleBreakTool('search_web')}>
+                        <span>Break search_web</span>
+                        <span style={{ color: 'var(--err)', fontSize: '10px' }}>INJECT</span>
+                      </button>
+                      <button className="btn-pill btn-pill-secondary btn-pill-sm" style={{ justifyContent: 'space-between' }} onClick={() => handleBreakTool('fetch_page')}>
+                        <span>Break fetch_page</span>
+                        <span style={{ color: 'var(--err)', fontSize: '10px' }}>INJECT</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Recovery Ladder */}
               <div className="recovery-ladder-box">
@@ -2711,82 +2784,342 @@ export default function AppShell({ route, id }: AppShellProps) {
       {(currentPath === '/r' || currentPath.startsWith('/r/')) && (
         <div className="page-wrapper container">
           <div className="steer-mobile-container">
+            {/* Top Bar: Protocol & Live Status */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="protocol-badge" style={{ marginBottom: 0 }}>
                 <img src="/logo.png" alt="Helmer" className="hero-badge-logo-img" />
-                <span className="badge-dot-green"></span>
+                <span className={effectiveIsPaused ? 'badge-dot-warn' : 'badge-dot-green'}></span>
                 <span className="protocol-text">POCKET CONTROLLER</span>
               </span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>
-                RUN: {activeRun.id}
+              <span style={{
+                fontFamily: 'var(--mono)',
+                fontSize: '10.5px',
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: '100px',
+                background: effectiveIsPaused ? 'rgba(255, 149, 0, 0.12)' : 'rgba(52, 199, 89, 0.12)',
+                color: effectiveIsPaused ? 'var(--warn)' : 'var(--ok)',
+                border: `1px solid ${effectiveIsPaused ? 'rgba(255, 149, 0, 0.25)' : 'rgba(52, 199, 89, 0.25)'}`,
+              }}>
+                {effectiveIsPaused ? '⏸ PAUSED' : activeRun.status === 'completed' ? '✓ SEALED' : '● LIVE'}
               </span>
             </div>
 
-            <div className="glass-panel" style={{ padding: '20px' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>
-                CURRENT WORKING GOAL
+            {/* Current Working Goal */}
+            <div className="glass-panel" style={{ padding: '18px 20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  CURRENT WORKING GOAL
+                </div>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-2)' }}>
+                  RUN: {activeRun.id}
+                </div>
               </div>
-              <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginTop: '4px' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginTop: '6px', lineHeight: 1.4 }}>
                 "{activeRun.goal}"
               </h2>
             </div>
 
-            {/* Giant Steering Buttons */}
-            <div className="steer-giant-btn-grid">
-              <button
-                className={`steer-big-btn steer-btn-pause`}
-                onClick={handlePauseToggle}
-              >
-                <span style={{ fontSize: '24px' }}>{isRunPaused ? '▶' : '⏸'}</span>
-                <span>{isRunPaused ? 'Resume Run' : 'Pause Run'}</span>
-              </button>
+            {/* Giant Steering Controls: ONLY shown for live, steerable active runs */}
+            {isLiveSteerable ? (
+              <>
+                <div className="steer-giant-btn-grid">
+                  <button
+                    className="steer-big-btn steer-btn-pause"
+                    onClick={handlePauseToggle}
+                    style={{
+                      background: effectiveIsPaused ? 'rgba(52, 199, 89, 0.16)' : undefined,
+                      borderColor: effectiveIsPaused ? 'rgba(52, 199, 89, 0.45)' : undefined,
+                      color: effectiveIsPaused ? 'var(--ok)' : undefined,
+                      boxShadow: effectiveIsPaused ? '0 0 20px rgba(52, 199, 89, 0.25)' : undefined,
+                    }}
+                  >
+                    <span style={{ fontSize: '26px' }}>{effectiveIsPaused ? '▶' : '⏸'}</span>
+                    <span style={{ fontWeight: 600 }}>{effectiveIsPaused ? 'Resume Run' : 'Pause Run'}</span>
+                  </button>
 
-              <button
-                className="steer-big-btn steer-btn-stop"
-                onClick={handleStop}
-              >
-                <span style={{ fontSize: '24px' }}>⏹</span>
-                <span>Stop Run</span>
-              </button>
+                  <button
+                    className="steer-big-btn steer-btn-stop"
+                    onClick={handleStop}
+                  >
+                    <span style={{ fontSize: '26px' }}>⏹</span>
+                    <span style={{ fontWeight: 600 }}>E-STOP (12ms)</span>
+                  </button>
+                </div>
+
+                <button
+                  className="btn-pill btn-pill-primary"
+                  style={{ width: '100%', padding: '14px', fontSize: '13px', fontWeight: 600 }}
+                  onClick={() => setIsRedirectModalOpen(true)}
+                >
+                  ↳ Redirect Instruction
+                </button>
+              </>
+            ) : (
+              <div className="glass-panel" style={{ padding: '16px 20px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--ok)', fontWeight: 600, marginBottom: '4px' }}>
+                  ✓ ARCHIVED RUN · READ-ONLY AUDIT
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-2)', margin: 0, lineHeight: 1.4 }}>
+                  This historical run is immutable and sealed in the flight recorder. Steering controls are disabled for archived runs.
+                </p>
+              </div>
+            )}
+
+            {/* 1. INTENT CONTRACT SECTION */}
+            <div className="glass-panel" style={{ padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                    1. INTENT CONTRACT
+                  </span>
+                </div>
+                <span style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '10px',
+                  padding: '2px 8px',
+                  borderRadius: '100px',
+                  background: activeRun.criteria.length > 0 ? 'rgba(52, 199, 89, 0.12)' : 'rgba(255, 149, 0, 0.12)',
+                  color: activeRun.criteria.length > 0 ? 'var(--ok)' : 'var(--warn)',
+                  border: `1px solid ${activeRun.criteria.length > 0 ? 'rgba(52, 199, 89, 0.25)' : 'rgba(255, 149, 0, 0.25)'}`,
+                }}>
+                  {activeRun.criteria.length > 0 ? 'SIGNED & SEALED' : 'INITIALIZING'}
+                </span>
+              </div>
+
+              {/* Success Criteria List */}
+              <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
+                SUCCESS CRITERIA ({activeRun.criteria.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {activeRun.criteria.length === 0 ? (
+                  <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', color: 'var(--text-2)', fontSize: '11.5px', fontFamily: 'var(--mono)' }}>
+                    {activeRun.status === 'running' ? '⏳ Synthesizing verifiable criteria from goal…' : 'No criteria registered.'}
+                  </div>
+                ) : (
+                  activeRun.criteria.map((c) => (
+                    <div
+                      key={c.id}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '10px',
+                        fontSize: '12px',
+                        color: 'var(--text)',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <span
+                        className={`crit-dot ${c.status}`}
+                        style={{ marginTop: '4px', flexShrink: 0 }}
+                        aria-hidden="true"
+                      ></span>
+                      <div style={{ flex: 1 }}>
+                        <div>{c.text}</div>
+                        {c.evidence && (
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--ok)', marginTop: '4px', opacity: 0.9 }}>
+                            ↳ {c.evidence}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Plan Trajectory */}
+              {activeRun.plan.length > 0 && (
+                <>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
+                    PLANNED TRAJECTORY ({activeRun.plan.length} STEPS)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {activeRun.plan.map((p) => (
+                      <div
+                        key={`${p.step_no}-${p.tool}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          fontSize: '11px',
+                          fontFamily: 'var(--mono)',
+                          color: 'var(--text-2)',
+                        }}
+                      >
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                          {p.step_no}. {p.title}
+                        </span>
+                        <span style={{
+                          fontWeight: 600,
+                          color: p.status === 'completed' ? 'var(--ok)' : p.status === 'running' ? 'var(--accent)' : 'var(--warn)',
+                        }}>
+                          {p.status === 'completed' ? '✓' : p.status === 'running' ? '●' : '...'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
-            <button
-              className="btn-pill btn-pill-primary"
-              style={{ width: '100%', padding: '14px' }}
-              onClick={() => setIsRedirectModalOpen(true)}
-            >
-              ↳ Redirect Instruction
-            </button>
+            {/* 2. EXECUTION TIMELINE SECTION */}
+            <div className="glass-panel" style={{ padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                  2. EXECUTION TIMELINE
+                </span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)' }}>
+                  {activeRun.steps.length} {activeRun.steps.length === 1 ? 'EVENT' : 'EVENTS'}
+                </span>
+              </div>
 
-            {/* Latest Step Live Card */}
-            <div className="glass-panel" style={{ padding: '18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--mono)', fontSize: '11px', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>LATEST EMITTED STEP</span>
-                <span style={{ color: 'var(--ok)' }}>200 OK</span>
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-                {activeRun.steps[activeRun.steps.length - 1]?.title || 'Awaiting step...'}
-              </div>
-              <p style={{ fontSize: '12.5px', color: 'var(--text-2)', marginTop: '4px' }}>
-                {activeRun.steps[activeRun.steps.length - 1]?.reasoning}
-              </p>
+              {activeRun.steps.length === 0 ? (
+                <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
+                    {activeRun.status === 'running' ? '⏳ Agent starting step loop…' : 'No steps recorded.'}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {activeRun.steps.map((st) => {
+                    const isRedirect = st.tool === 'human::redirect';
+                    const isExpanded = expandedStep === st.step_no;
+
+                    if (isRedirect) {
+                      return (
+                        <div
+                          key={`${st.step_no}-${st.tool}`}
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: '12px',
+                            background: 'rgba(0, 113, 227, 0.08)',
+                            border: '1px solid rgba(0, 113, 227, 0.25)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: '10.5px', fontWeight: 600, color: 'var(--accent)' }}>
+                              🔄 OPERATOR STEERING
+                            </span>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)' }}>
+                              {st.duration_ms}ms
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12.5px', color: 'var(--text)', fontWeight: 500 }}>
+                            {st.reasoning}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={st.step_no}
+                        onClick={() => setExpandedStep(isExpanded ? null : st.step_no)}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          background: isExpanded ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                          border: `1px solid ${isExpanded ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.07)'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="step-no-badge" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                              STEP {st.step_no}
+                            </span>
+                            <span style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--text)' }}>
+                              {st.title}
+                            </span>
+                          </div>
+                          <span className="step-tool-chip" style={{ fontSize: '10px' }}>
+                            {st.tool}
+                          </span>
+                        </div>
+
+                        {st.reasoning && (
+                          <div style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.4 }}>
+                            "{st.reasoning}"
+                          </div>
+                        )}
+
+                        {st.status === 'injected' && (
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--err)', marginTop: '2px' }}>
+                            ⚡ FAULT INJECTED
+                          </div>
+                        )}
+
+                        {isExpanded && st.payload && (
+                          <div style={{
+                            marginTop: '8px',
+                            padding: '10px',
+                            borderRadius: '8px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            fontFamily: 'var(--mono)',
+                            fontSize: '10.5px',
+                            color: 'var(--text-2)',
+                            maxHeight: '160px',
+                            overflowY: 'auto',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all',
+                          }}>
+                            {typeof st.payload === 'string' ? st.payload : JSON.stringify(st.payload, null, 2)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Quick Chaos Fault Trigger from Phone */}
-            <div className="glass-panel" style={{ padding: '18px' }}>
-              <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)', marginBottom: '8px', textTransform: 'uppercase' }}>
-                CHAOS TRIGGER (DEMO TEST)
+            {/* Deliverable Preview if available */}
+            {activeRun.artifactContent && (
+              <div className="glass-panel" style={{ padding: '18px 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--ok)', fontWeight: 600 }}>
+                    ✓ DELIVERABLE PRODUCED
+                  </span>
+                  <button
+                    className="btn-pill btn-pill-secondary btn-pill-sm"
+                    style={{ fontSize: '11px', padding: '4px 10px' }}
+                    onClick={() => setIsDeliverableModalOpen(true)}
+                  >
+                    View Deliverable ↗
+                  </button>
+                </div>
+                <div style={{
+                  padding: '12px',
+                  borderRadius: '10px',
+                  background: 'rgba(0, 0, 0, 0.25)',
+                  fontSize: '12px',
+                  color: 'var(--text)',
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  fontFamily: 'var(--mono)',
+                  lineHeight: 1.5,
+                }}>
+                  {activeRun.artifactContent.slice(0, 300)}
+                  {activeRun.artifactContent.length > 300 ? '…' : ''}
+                </div>
               </div>
-              <button
-                className="btn-pill btn-pill-secondary btn-pill-sm"
-                style={{ width: '100%', borderColor: 'var(--err-border)', color: 'var(--err)' }}
-                onClick={() => handleBreakTool('search_web')}
-              >
-                ⚡ Break search_web from Phone
-              </button>
-            </div>
+            )}
 
-            <div style={{ textAlign: 'center', marginTop: '12px' }}>
+            <div style={{ textAlign: 'center', marginTop: '4px', marginBottom: '24px' }}>
               <button
                 className="btn-pill btn-pill-secondary btn-pill-sm"
                 onClick={() => navigateTo(`/run/${activeRun.id}`)}
