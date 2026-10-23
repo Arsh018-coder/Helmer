@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Playfair+Display:ital,wght@0,400..900;1,400..900&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<style>
+  @layer base { 
+    html, body { margin: 0; padding: 0; background-color: #F6F8FA; } 
+    body { overscroll-behavior: none; } 
+    main > :first-child { margin-top: 0 !important; } 
+    main > :last-child { margin-bottom: 0 !important; } 
+  } 
+  ::-webkit-scrollbar { display: none; }
+  .apple-glass {
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.9) inset, 0 12px 32px -8px rgba(15, 23, 42, 0.05);
+  }
+  .apple-glass-card {
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(226, 232, 240, 0.7);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.8) inset, 0 8px 24px -6px rgba(15, 23, 42, 0.04);
+  }
+</style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = { 
+  darkMode: "class", 
+  theme: { 
+    extend: { 
+      colors: { 
+        "page-bg": "#F6F8FA",
+        "ink": "#0B1320",
+        "ink-subtle": "#64748B",
+        "ink-faint": "#94A3B8",
+        "border-hairline": "rgba(226, 232, 240, 0.8)",
+        "accent": "#0E7C86",
+        "accent-tint": "#E6F4F6",
+        "surface-card": "rgba(255, 255, 255, 0.7)"
+      }, 
+      borderRadius: { 
+        "apple": "24px",
+        "DEFAULT": "1rem", 
+        "lg": "1.5rem", 
+        "xl": "2rem", 
+        "full": "9999px" 
+      }, 
+      fontFamily: { 
+        "sans": ["Geist", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        "display-italic": ["Playfair Display", "Georgia", "serif"],
+        "mono": ["JetBrains Mono", "SF Mono", "monospace"]
+      } 
+    } 
+  } 
+};
+</script>
+</head>
+<body class="bg-[#F6F8FA] font-sans text-ink antialiased selection:bg-slate-200">
+<!-- HEADER -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-[#F6F8FA]/75 backdrop-blur-2xl border-b border-black/[0.04] transition-all">
+<div class="h-16 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between">
+<a class="flex items-center gap-2 group" data-path="landing" href="#">
+<span class="material-symbols-outlined text-ink text-[20px] transition-transform group-hover:scale-105">flight</span>
+<span class="text-[15px] font-semibold tracking-tight text-ink">FlightDeck</span>
+</a>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-[13px] font-normal text-ink-subtle hover:text-ink transition-colors tracking-tight" data-path="product" href="#">Product</a>
+<a class="text-[13px] font-normal text-ink-subtle hover:text-ink transition-colors tracking-tight" data-path="how-it-works" href="#">How it works</a>
+<a class="text-[13px] font-normal text-ink-subtle hover:text-ink transition-colors tracking-tight" data-path="live-steering" href="#">Console</a>
+</nav>
+<div class="flex items-center gap-3">
+<a class="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-ink text-white text-[13px] font-medium hover:bg-slate-800 transition-all shadow-sm" data-path="live-steering" href="#">
+        Open the console
+      </a>
+<div class="w-8 h-8 rounded-full bg-slate-200/80 border border-slate-300/40 flex items-center justify-center text-ink-subtle">
+<span class="material-symbols-outlined text-[17px]">person</span>
+</div>
+</div>
+</div>
+</header>
+<main class="w-full pt-16 bg-[#F6F8FA] min-h-[calc(100vh-140px)]">
+<div class="flex flex-col w-full text-ink">
+<!-- HERO WRAPPER WITH SUBTLE APPLE AESTHETIC UNDERLAY -->
+<section class="relative w-full overflow-hidden pt-16 pb-24 md:pb-36 flex flex-col items-center justify-center">
+<!-- Subtle, faint cool-white / pale-graphite diffuse blur shape -->
+<div class="pointer-events-none absolute inset-0 flex items-center justify-center -z-10 overflow-hidden">
+<div class="absolute w-[680px] h-[480px] rounded-full bg-gradient-to-tr from-slate-200/50 via-slate-100/70 to-slate-200/30 blur-[110px]"></div>
+<div class="absolute w-[440px] h-[440px] rounded-full bg-cyan-100/30 blur-[130px]"></div>
+<!-- Architectural subtle concentric hairline rings -->
+<svg class="absolute w-[920px] h-[920px] text-slate-300/40 opacity-50" fill="none" viewbox="0 0 1000 1000">
+<circle cx="500" cy="500" r="180" stroke="currentColor" stroke-dasharray="2 6" stroke-width="0.75"></circle>
+<circle cx="500" cy="500" r="320" stroke="currentColor" stroke-width="0.65"></circle>
+<circle cx="500" cy="500" r="460" stroke="currentColor" stroke-dasharray="3 9" stroke-width="0.75"></circle>
+<line stroke="currentColor" stroke-dasharray="4 8" stroke-width="0.5" x1="500" x2="500" y1="40" y2="960"></line>
+<line stroke="currentColor" stroke-dasharray="4 8" stroke-width="0.5" x1="40" x2="960" y1="500" y2="500"></line>
+</svg>
+</div>
+<!-- Hero Content -->
+<div class="max-w-4xl mx-auto px-6 text-center flex flex-col items-center">
+<!-- Whisper-quiet status badge -->
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 border border-slate-200/80 backdrop-blur-md mb-8 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+<span class="font-mono text-[11px] font-medium tracking-wide text-ink-subtle uppercase">Flight Protocol v4.2 · Verified Deterministic</span>
+</div>
+<!-- Main Headline with Playfair Italic Serif (No Gradients) -->
+<h1 class="text-4xl sm:text-5xl md:text-[64px] font-semibold tracking-[-0.035em] text-ink max-w-4xl leading-[1.08] mb-5">
+      Agents that <em class="font-display-italic italic font-normal text-ink">show their work.</em>
+</h1>
+<!-- Quiet Subtitle -->
+<p class="text-[17px] md:text-[18px] text-ink-subtle max-w-xl mb-10 leading-relaxed font-normal tracking-[-0.01em]">
+      Run autonomous tasks you can watch, steer, and verify.
+    </p>
+<!-- Apple-style Pill Actions -->
+<div class="flex flex-col sm:flex-row items-center gap-3 mb-14 z-20">
+<a class="w-full sm:w-auto inline-flex items-center justify-center px-7 py-3 rounded-full bg-ink text-white text-[14px] font-medium hover:bg-slate-800 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.08)] active:scale-[0.98]" data-path="live-steering" href="#">
+        Open the console
+      </a>
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-white/80 border border-slate-200/80 backdrop-blur-lg text-ink text-[14px] font-medium hover:bg-white hover:border-slate-300 transition-all shadow-[0_1px_4px_rgba(0,0,0,0.02)] active:scale-[0.98]" href="#telemetry-proof">
+<span class="material-symbols-outlined text-[17px] text-ink-subtle">play_circle</span>
+        Watch a recorded run
+      </a>
+</div>
+</div>
+<!-- Hero Centerpiece: Centered Mascot + Flanking Apple Frosted Glass Cards -->
+<div class="relative w-full max-w-5xl mx-auto px-6 mt-2 flex flex-col items-center">
+<!-- Central Floating Mascot Display -->
+<div class="relative w-72 sm:w-80 md:w-96 aspect-square flex items-center justify-center z-10 select-none">
+<img class="w-full h-full object-contain filter drop-shadow-[0_20px_28px_rgba(15,23,42,0.12)] hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Charming minimalist robot mascot on stone pedestal" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7jFM6mJkx5tCBeIoNV-dVPXmnIe3b_iyVeFOwAyNDHzWSTLU0v4IkzKsp4WRBuP-0S0HJ_yAWnS_G2LLs21ghav9KkOPv8I_ZSXGEHl-2dn1DBlVe_maOHWgAmEho2oBQanmrkhazQkuc8nfxd30n2rGMwVFZiPBxSofYv4kXDxzj3mz7ku9wm0ZyeogfPcnuIGgmbFGoQdpRFiLkNQsGCzGr_2XkpgshFxuKEyCKioWru7cdYFx7sY5P5ByMjyIARQ"/>
+<div class="absolute -bottom-2 w-52 h-4 bg-slate-400/20 blur-xl rounded-full pointer-events-none"></div>
+</div>
+<!-- Left Flanking Frosted Glass Card -->
+<div class="w-full sm:w-auto md:absolute md:left-6 md:top-1/3 z-20 mt-4 md:mt-0 max-w-xs p-5 rounded-[24px] apple-glass transition-all duration-300 hover:-translate-y-0.5">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-1.5 h-1.5 rounded-full bg-ink"></span>
+<span class="font-mono text-[11px] uppercase tracking-wider text-ink font-semibold">Continuous Telemetry</span>
+</div>
+<p class="text-[13px] text-ink-subtle leading-relaxed font-normal">
+        Every step on the record. Reasoning, tool calls, results.
+      </p>
+<div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-ink-subtle font-mono text-[11px]">
+<span>RUN #0894-F</span>
+<span class="text-emerald-600 font-medium">100% AUDITED</span>
+</div>
+</div>
+<!-- Right Flanking Frosted Glass Card -->
+<div class="w-full sm:w-auto md:absolute md:right-6 md:top-1/3 z-20 mt-4 md:mt-0 max-w-xs p-5 rounded-[24px] apple-glass transition-all duration-300 hover:-translate-y-0.5">
+<div class="flex items-center gap-2 mb-2">
+<span class="w-1.5 h-1.5 rounded-full bg-ink"></span>
+<span class="font-mono text-[11px] uppercase tracking-wider text-ink font-semibold">Zero-Latency Intervene</span>
+</div>
+<p class="text-[13px] text-ink-subtle leading-relaxed font-normal">
+        A stop button within reach. Pause or redirect any run.
+      </p>
+<div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between font-mono text-[11px]">
+<span class="text-ink-subtle">E-STOP LATENCY</span>
+<span class="text-ink font-semibold">12ms GUARANTEE</span>
+</div>
+</div>
+</div>
+</section>
+<!-- REFINED METRIC STRIP (Quiet, light hairline container) -->
+<section class="w-full py-12 px-6 border-y border-slate-200/70 bg-white/50 backdrop-blur-md">
+<div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+<div class="flex flex-col">
+<span class="font-mono text-[11px] uppercase text-ink-subtle tracking-wide mb-1.5">Audit Traceability</span>
+<span class="text-[34px] md:text-[38px] font-semibold tracking-tight text-ink leading-none">100%</span>
+<span class="text-[12px] text-ink-subtle mt-2">Full cryptographic reproducibility</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-[11px] uppercase text-ink-subtle tracking-wide mb-1.5">Human-in-Loop Halt</span>
+<span class="text-[34px] md:text-[38px] font-semibold tracking-tight text-ink leading-none">&lt; 14ms</span>
+<span class="text-[12px] text-ink-subtle mt-2">Instant thread interception</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-[11px] uppercase text-ink-subtle tracking-wide mb-1.5">Tool Sandbox Confinement</span>
+<span class="text-[34px] md:text-[38px] font-semibold tracking-tight text-ink leading-none">gVisor</span>
+<span class="text-[12px] text-ink-subtle mt-2">Isolated memory workspaces</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-[11px] uppercase text-ink-subtle tracking-wide mb-1.5">Autonomous Resilience</span>
+<span class="text-[34px] md:text-[38px] font-semibold tracking-tight text-ink leading-none">99.98%</span>
+<span class="text-[12px] text-ink-subtle mt-2">Self-healing DAG trajectories</span>
+</div>
+</div>
+</section>
+<!-- SHOWCASE SECTION 1: INTENT IN. EVIDENCE OUT -->
+<section class="w-full py-28 px-6 lg:px-12 max-w-7xl mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<!-- Left Narrative -->
+<div class="lg:col-span-5 flex flex-col items-start">
+<span class="font-mono text-[11px] uppercase tracking-wider text-ink-subtle mb-3">Feature 01 · Cryptographic Proof</span>
+<h2 class="text-3xl md:text-4xl font-semibold text-ink tracking-tight leading-tight mb-5">
+        Intent in. <br/><span class="text-ink-subtle font-normal">Evidence out.</span>
+</h2>
+<p class="text-[15px] text-ink-subtle mb-8 leading-relaxed">
+        No black boxes. FlightDeck records every parameter, prompt evolution, tool activation, and database touch in a deterministic sequence signed by agent keys.
+      </p>
+<div class="flex flex-col gap-3 w-full">
+<div class="p-4 rounded-[18px] apple-glass-card flex items-start gap-4">
+<span class="material-symbols-outlined text-ink text-[22px] mt-0.5">verified_user</span>
+<div>
+<h4 class="text-[14px] font-semibold text-ink">Signed Nonce Validation</h4>
+<p class="text-[12px] text-ink-subtle mt-0.5 leading-relaxed">Every state emission carries an elliptic curve signature verifying execution provenance.</p>
+</div>
+</div>
+<div class="p-4 rounded-[18px] apple-glass-card flex items-start gap-4">
+<span class="material-symbols-outlined text-ink text-[22px] mt-0.5">account_tree</span>
+<div>
+<h4 class="text-[14px] font-semibold text-ink">Branch Reasoning Tree</h4>
+<p class="text-[12px] text-ink-subtle mt-0.5 leading-relaxed">Reconstruct alternative thought pathways and verify exactly why an agent chose a specific trajectory.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Interactive Card Display (Frosted Apple Card) -->
+<div class="lg:col-span-7">
+<div class="rounded-[24px] apple-glass p-6 sm:p-8 relative">
+<div class="flex items-center justify-between pb-5 mb-5 border-b border-slate-200/70">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+<span class="font-mono text-[12px] text-ink-subtle ml-2">flightdeck://session/tx_883a90c1f</span>
+</div>
+<span class="font-mono text-[10px] tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-semibold uppercase">VERIFIED DETERMINISTIC</span>
+</div>
+<!-- Prompt Box -->
+<div class="rounded-[16px] bg-slate-50/80 border border-slate-200/80 p-4 mb-5">
+<div class="flex items-center justify-between text-ink-faint font-mono text-[11px] mb-1.5">
+<span>USER INTENT INPUT</span>
+<span>TOKEN CONF: 0.998</span>
+</div>
+<p class="text-[13px] text-ink font-medium leading-relaxed">
+            "Synthesize Q3 financial reports, reconcile multi-currency wire drift, and propose currency hedge allocations."
+          </p>
+</div>
+<!-- Step Trace Line -->
+<div class="relative pl-6 space-y-3.5 before:content-[''] before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-[1px] before:bg-slate-200">
+<!-- Step 1 -->
+<div class="relative">
+<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-white"></span>
+<div class="p-3.5 rounded-[14px] bg-white/80 border border-slate-200/70 flex flex-col gap-1 shadow-sm">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] text-ink font-semibold">tool::sec_edgar_crawler</span>
+<span class="font-mono text-[11px] text-ink-subtle">42ms · 200 OK</span>
+</div>
+<p class="text-[12px] text-ink-subtle">Fetched 10-Q filing payloads and verified cryptographic checksum.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="relative">
+<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full bg-slate-400 ring-4 ring-white"></span>
+<div class="p-3.5 rounded-[14px] bg-white/80 border border-slate-200/70 flex flex-col gap-1 shadow-sm">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] text-ink font-semibold">calc::drift_reconciliation</span>
+<span class="font-mono text-[11px] text-ink-subtle">88ms · zero variance</span>
+</div>
+<p class="text-[12px] text-ink-subtle">Delta computed across 14 wire ledgers. Drift verified at $0.00.</p>
+</div>
+</div>
+<!-- Step 3 (Proof Node) -->
+<div class="relative">
+<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-white"></span>
+<div class="p-3.5 rounded-[14px] bg-emerald-50/50 border border-emerald-200/60 flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-mono text-[12px] text-emerald-800 font-semibold">proof::zk_attestation</span>
+<span class="font-mono text-[10px] text-emerald-700 font-medium">SEALED BLOCK #409,219</span>
+</div>
+<div class="p-2 rounded-[8px] bg-white/90 border border-emerald-200/40 font-mono text-[11px] text-ink-subtle truncate">
+                SHA256: 0x9b46ec27b16521bc19e78fd4e3b79f60f643f87d46ff8db31fa7c
+              </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SHOWCASE SECTION 2: BREAK IT ON PURPOSE -->
+<section class="w-full py-28 px-6 lg:px-12 bg-slate-100/40 border-y border-slate-200/60 relative overflow-hidden">
+<div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<!-- Interactive Chaos Injector Mockup -->
+<div class="lg:col-span-7 order-2 lg:order-1">
+<div class="rounded-[24px] apple-glass p-6 sm:p-8 relative">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 mb-6 border-b border-slate-200/70">
+<div>
+<span class="font-mono text-[10px] text-ink-subtle tracking-wider uppercase font-semibold">CHAOS EXPERIMENT SUITE</span>
+<h3 class="text-[20px] text-ink font-semibold mt-0.5 tracking-tight">Live Resiliency Injector</h3>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3.5 py-1.5 rounded-full bg-ink text-white font-mono text-[11px] uppercase font-medium flex items-center gap-1.5 hover:bg-slate-800 transition-all shadow-sm">
+<span class="material-symbols-outlined text-[15px]">bolt</span>
+              Inject Fault
+            </button>
+<button class="px-3 py-1.5 rounded-full bg-white border border-slate-200/80 text-ink-subtle font-mono text-[11px] uppercase hover:text-ink transition-all">
+              Reset
+            </button>
+</div>
+</div>
+<!-- Fault Sliders / Matrix -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+<div class="p-4 rounded-[16px] bg-white/70 border border-slate-200/70">
+<span class="font-mono text-[10px] text-ink-faint block mb-1">API TIMEOUT DELAY</span>
+<div class="text-[17px] text-ink font-semibold mb-2">4,500ms</div>
+<div class="w-full bg-slate-200/70 h-1 rounded-full overflow-hidden">
+<div class="bg-ink h-full w-3/4"></div>
+</div>
+</div>
+<div class="p-4 rounded-[16px] bg-white/70 border border-slate-200/70">
+<span class="font-mono text-[10px] text-ink-faint block mb-1">DATA HALLUCINATION PROB</span>
+<div class="text-[17px] text-rose-600 font-semibold mb-2">35.0%</div>
+<div class="w-full bg-slate-200/70 h-1 rounded-full overflow-hidden">
+<div class="bg-rose-500 h-full w-1/3"></div>
+</div>
+</div>
+<div class="p-4 rounded-[16px] bg-white/70 border border-slate-200/70">
+<span class="font-mono text-[10px] text-ink-faint block mb-1">RECOVERY SUB-AGENTS</span>
+<div class="text-[17px] text-emerald-700 font-semibold mb-2">3 Active</div>
+<div class="w-full bg-slate-200/70 h-1 rounded-full overflow-hidden">
+<div class="bg-emerald-600 h-full w-full"></div>
+</div>
+</div>
+</div>
+<!-- Clean Hairline SVG Flowchart -->
+<div class="p-5 rounded-[16px] bg-white/90 border border-slate-200/80">
+<div class="flex items-center justify-between font-mono text-[11px] text-ink-subtle mb-4">
+<span>REAL-TIME TRAJECTORY SELF-HEAL</span>
+<span class="text-emerald-700 font-medium">STABILIZED IN 210ms</span>
+</div>
+<svg class="w-full h-28" fill="none" viewbox="0 0 600 100">
+<!-- Primary Line -->
+<path d="M 40 50 L 180 50" stroke="#0B1320" stroke-linecap="round" stroke-width="2"></path>
+<circle cx="40" cy="50" fill="#0B1320" r="6"></circle>
+<text fill="#64748B" font-family="JetBrains Mono" font-size="10" text-anchor="middle" x="40" y="76">Agent Init</text>
+<path d="M 180 50 L 260 22" stroke="#E11D48" stroke-dasharray="3 3" stroke-width="1.5"></path>
+<circle cx="180" cy="50" fill="#0B1320" r="5"></circle>
+<text fill="#64748B" font-family="JetBrains Mono" font-size="10" text-anchor="middle" x="180" y="76">Tool Call</text>
+<!-- Fault Hit -->
+<circle cx="260" cy="22" fill="#E11D48" r="6"></circle>
+<text fill="#E11D48" font-family="JetBrains Mono" font-size="9" font-weight="600" text-anchor="middle" x="260" y="38">ERR</text>
+<!-- Self-Heal Arc Divergence -->
+<path d="M 180 50 C 240 85, 340 85, 400 50" stroke="#059669" stroke-linecap="round" stroke-width="2"></path>
+<circle cx="300" cy="76" fill="#059669" r="4"></circle>
+<text fill="#059669" font-family="JetBrains Mono" font-size="9.5" text-anchor="middle" x="300" y="94">Fallback Model Invoked</text>
+<!-- Success Final Node -->
+<path d="M 400 50 L 560 50" stroke="#059669" stroke-linecap="round" stroke-width="2"></path>
+<circle cx="400" cy="50" fill="#059669" r="5"></circle>
+<text fill="#64748B" font-family="JetBrains Mono" font-size="10" text-anchor="middle" x="400" y="32">Target Acquired</text>
+<circle cx="560" cy="50" fill="#059669" r="6"></circle>
+<text fill="#059669" font-family="JetBrains Mono" font-size="10" font-weight="600" text-anchor="middle" x="560" y="76">Task Completed</text>
+</svg>
+</div>
+</div>
+</div>
+<!-- Right Narrative -->
+<div class="lg:col-span-5 order-1 lg:order-2 flex flex-col items-start">
+<span class="font-mono text-[11px] uppercase tracking-wider text-ink-subtle mb-3">Feature 02 · Chaos Resilience</span>
+<h2 class="text-3xl md:text-4xl font-semibold text-ink tracking-tight leading-tight mb-5">
+        Break it <br/><span class="text-ink-subtle font-normal">on purpose.</span>
+</h2>
+<p class="text-[15px] text-ink-subtle mb-8 leading-relaxed">
+        Simulate upstream latency spikes, poisoned tool outputs, and truncated contexts before deploying production agents to critical infrastructure.
+      </p>
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-ink text-[18px]">check_circle</span>
+<span class="text-[14px] text-ink font-medium">Automatic fallback model routing</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-ink text-[18px]">check_circle</span>
+<span class="text-[14px] text-ink font-medium">Dead-loop detection with rollback checkpoints</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-ink text-[18px]">check_circle</span>
+<span class="text-[14px] text-ink font-medium">Deterministic simulation seeding</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SHOWCASE SECTION 3: A BLACK BOX FOR EVERY RUN -->
+<section class="w-full py-28 px-6 lg:px-12 max-w-7xl mx-auto" id="telemetry-proof">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<!-- Left Narrative -->
+<div class="lg:col-span-5 flex flex-col items-start">
+<span class="font-mono text-[11px] uppercase tracking-wider text-ink-subtle mb-3">Feature 03 · Immutable Audit</span>
+<h2 class="text-3xl md:text-4xl font-semibold text-ink tracking-tight leading-tight mb-5">
+        A black box <br/><span class="text-ink-subtle font-normal">for every run.</span>
+</h2>
+<p class="text-[15px] text-ink-subtle mb-8 leading-relaxed">
+        FlightDeck provides full flight-data recorder capabilities for multi-agent workflows. Inspect state diffs at any timestamp with microsecond fidelity.
+      </p>
+<a class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white border border-slate-200/80 text-ink text-[14px] font-medium hover:border-slate-300 hover:shadow-sm transition-all" data-path="live-steering" href="#">
+        Explore Flight Audit Trail
+        <span class="material-symbols-outlined text-[17px]">arrow_forward</span>
+</a>
+</div>
+<!-- Right Hash Chain Visual -->
+<div class="lg:col-span-7">
+<div class="rounded-[24px] apple-glass p-6 sm:p-8">
+<div class="flex items-center justify-between pb-5 mb-5 border-b border-slate-200/70">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-ink text-[18px]">lock</span>
+<span class="font-mono text-[11px] text-ink font-semibold uppercase tracking-wider">IMMUTABLE MERKLE TREE LOG</span>
+</div>
+<span class="font-mono text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200/70 text-ink-subtle font-medium">BLOCKCHAIN BACKED</span>
+</div>
+<!-- Hash Chain Items -->
+<div class="space-y-2.5 font-mono text-[12px]">
+<div class="p-3.5 rounded-[14px] bg-white/70 border border-slate-200/60 flex items-center justify-between">
+<div class="flex items-center gap-3 truncate">
+<span class="text-ink-faint">#001</span>
+<span class="text-ink font-medium truncate">ROOT_GENESIS_SEED</span>
+</div>
+<span class="text-ink-subtle font-mono text-[11px]">e8a1..390b</span>
+</div>
+<div class="p-3.5 rounded-[14px] bg-white/70 border border-slate-200/60 flex items-center justify-between">
+<div class="flex items-center gap-3 truncate">
+<span class="text-ink-faint">#002</span>
+<span class="text-ink font-medium truncate">AGENT_PLANNER_DECISION_MATRIX</span>
+</div>
+<span class="text-ink-subtle font-mono text-[11px]">c380..99f2</span>
+</div>
+<div class="p-3.5 rounded-[14px] bg-white/70 border border-slate-200/60 flex items-center justify-between">
+<div class="flex items-center gap-3 truncate">
+<span class="text-ink-faint">#003</span>
+<span class="text-ink font-medium truncate">DB_WRITE_LOCK_ACQUIRED</span>
+</div>
+<span class="text-ink-subtle font-mono text-[11px]">44fd..11b8</span>
+</div>
+<div class="p-3.5 rounded-[14px] bg-emerald-50/60 border border-emerald-200/60 flex items-center justify-between">
+<div class="flex items-center gap-3 truncate">
+<span class="text-emerald-700">#004</span>
+<span class="text-emerald-800 font-medium truncate">CRYPTO_PROOF_SIGNATURE_FINAL</span>
+</div>
+<span class="text-emerald-700 font-mono text-[11px]">7a12..90cc</span>
+</div>
+</div>
+<div class="mt-5 pt-4 border-t border-slate-200/60 flex items-center justify-between font-mono text-[11px] text-ink-subtle">
+<span>HASH STATE: SYNCHRONIZED</span>
+<span class="text-emerald-600 font-medium">VERIFIED ZERO TAMPERING</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- SECONDARY VISUAL SHOWCASE: FLEET OBSERVABILITY -->
+<section class="w-full py-20 px-6 lg:px-12 border-t border-slate-200/70 bg-white/40">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-12">
+<div class="md:w-1/2">
+<h3 class="text-3xl md:text-4xl font-semibold text-ink mb-4 leading-tight tracking-tight">
+        Observability engineered <br/>for high-stakes autonomy.
+      </h3>
+<p class="text-[15px] text-ink-subtle mb-8 leading-relaxed max-w-lg">
+        Whether you manage financial arbitrage bots or medical diagnostic copilots, FlightDeck provides the guardrails and transparency required to trust agentic systems.
+      </p>
+<div class="flex items-center gap-10">
+<div class="flex flex-col">
+<span class="text-[32px] md:text-[36px] text-ink font-semibold tracking-tight">120k+</span>
+<span class="text-[12px] text-ink-subtle mt-0.5">Runs Audited Daily</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[32px] md:text-[36px] text-ink font-semibold tracking-tight">0.0ms</span>
+<span class="text-[12px] text-ink-subtle mt-0.5">Unlogged State Drift</span>
+</div>
+</div>
+</div>
+<div class="md:w-1/2 w-full">
+<div class="relative w-full h-72 rounded-[24px] overflow-hidden border border-slate-200/80 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.06)]">
+<img class="w-full h-full object-cover" data-alt="Aerospace telemetry mission control room interface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCADCgK_ujooXt0CogN0GxoW_a5VdQ0J-Ny8qokWtn560_KF8EtBELI3hGeUXDo80x7nJJlsgUxGJtKFMHVRVdqfHYHfzcTcwczqx23JqeK8kOVITtB350llPb422hynDcSx-llanUFGP3DuRgHOaHLP4ebFkVfXC0eUAzt1GVzU2N3jV71mjLSlfBePG77Q8gxDnz5RPMbw9eVsyluNBbzE0fjXehIynHsGzweMeVX1UP-GZaIsd4G"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex items-center justify-between p-3.5 rounded-[16px] apple-glass">
+<span class="font-mono text-[11px] text-ink uppercase tracking-wider font-medium">SECTOR 04 · GLOBAL AGENT MESH</span>
+<span class="font-mono text-[11px] text-ink font-semibold">ACTIVE TELEMETRY STREAM</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- MINIMALIST QUIET ATTRIBUTION -->
+<div class="w-full py-8 text-center bg-[#F6F8FA] border-t border-slate-200/60">
+<p class="font-mono text-[11px] text-ink-faint tracking-wider uppercase">
+    Built by devX · CGC University, Mohali · HACK-O-OCTO 4.0
+  </p>
+</div>
+</div>
+</main>
+<!-- FOOTER -->
+<footer class="w-full bg-[#F6F8FA] py-10 border-t border-slate-200/50">
+<div class="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-ink text-[16px]">flight</span>
+<span class="font-mono text-[11px] uppercase text-ink-subtle">© 2025 FlightDeck Orchestration Inc.</span>
+</div>
+<div class="flex items-center gap-6">
+<a class="text-[12px] text-ink-subtle hover:text-ink transition-colors" data-path="landing" href="#">Overview</a>
+<a class="text-[12px] text-ink-subtle hover:text-ink transition-colors" data-path="how-it-works" href="#">Specifications</a>
+<a class="text-[12px] text-ink-subtle hover:text-ink transition-colors" data-path="execution-proof" href="#">Telemetry Proofs</a>
+</div>
+</div>
+</footer>
+</body></html>
