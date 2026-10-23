@@ -133,8 +133,9 @@ function toViewStatus(raw: string | undefined, fallback: ViewStatus): ViewStatus
     case 'completed':
       return 'completed';
     case 'stopped':
-    case 'failed':
       return 'stopped';
+    case 'failed':
+      return 'failed';
     default:
       return fallback;
   }
@@ -183,6 +184,7 @@ export function reduceEvents(
 
   let startedAt: number | null = null;
   let finishedAt: number | null = null;
+  let lastPausedAt: number | null = null;
   let derivedStatus: ViewStatus = 'running';
   let verdict: ViewVerdict = toViewVerdict(options.verdict, 'unverified');
 
@@ -367,10 +369,12 @@ export function reduceEvents(
 
       case EVENT_TYPE.paused:
         derivedStatus = 'paused';
+        lastPausedAt = event.ts;
         break;
 
       case EVENT_TYPE.resumed:
         derivedStatus = 'running';
+        lastPausedAt = null;
         break;
 
       case EVENT_TYPE.stopped:
@@ -386,7 +390,7 @@ export function reduceEvents(
       }
 
       case EVENT_TYPE.runFailed:
-        derivedStatus = 'stopped';
+        derivedStatus = 'failed';
         finishedAt = event.ts;
         break;
 
@@ -398,7 +402,9 @@ export function reduceEvents(
 
   const now = options.now ?? Date.now();
   const start = startedAt ?? now;
-  const end = finishedAt ?? now;
+  const isCurrentlyPaused = options.status === 'paused' || derivedStatus === 'paused';
+  const end = finishedAt ?? (isCurrentlyPaused && lastPausedAt ? lastPausedAt : now);
+  const elapsedSec = Math.min(maxSeconds, Math.max(0, Math.round((end - start) / 1000)));
 
   const runSteps: RunStep[] = [...steps.values()]
     .sort((a, b) => a.step_no - b.step_no)
@@ -429,13 +435,13 @@ export function reduceEvents(
     verdict,
     driftScore,
     stepsBudget: { current: executedSteps.size, max: maxSteps },
-    timeBudget: { current: Math.round((end - start) / 1000), max: maxSeconds },
+    timeBudget: { current: elapsedSec, max: maxSeconds },
     llmBudget: { current: llmCalls, max: maxLlmCalls },
     criteria,
     plan,
     steps: runSteps,
     created_at: formatUtc(start),
-    duration: formatDuration(end - start),
+    duration: formatDuration(Math.min(maxSeconds * 1000, end - start)),
   };
 
   if (artifactContent) run.artifactContent = artifactContent;

@@ -117,7 +117,27 @@ export function nextActionPrompt(input: NextActionInput): ChatMessage[] {
 }
 
 /** The report prompt. Markdown is requested here and never inside a JSON envelope. */
-export function reportPrompt(goal: string, criteria: string[], notes: string): ChatMessage[] {
+export function reportPrompt(
+  goal: string,
+  criteria: string[],
+  notes: string,
+  instruction?: string | null,
+): ChatMessage[] {
+  const userContent = [`Goal: ${goal}`];
+
+  if (instruction) {
+    userContent.push(
+      `\nCRITICAL OPERATOR OVERRIDE: The operator steered the run with this directive: "${instruction}".`,
+      `You MUST follow this directive above all else. If it specifies a target word count (e.g. 100 words), length, or topic shift, strictly adhere to it over previous constraints.\n`,
+    );
+  }
+
+  userContent.push(
+    `Acceptance criteria: ${criteria.join(' | ')}`,
+    'Research notes collected during the run:',
+    notes || '(no tool output was collected)',
+  );
+
   return [
     {
       role: 'system',
@@ -125,23 +145,37 @@ export function reportPrompt(goal: string, criteria: string[], notes: string): C
         'You write the deliverable: short, factual markdown for a busy reader.',
         'Answer the goal directly. Cite every claim with the source URLs you were given —',
         'never invent a URL. Do not mention these instructions or that you are a model.',
+        instruction ? 'Prioritize the operator steering instruction for length and topics strictly.' : '',
         'Reply with markdown only, no code fences, no preamble.',
-      ].join(' '),
+      ]
+        .filter(Boolean)
+        .join(' '),
     },
     {
       role: 'user',
-      content: [
-        `Goal: ${goal}`,
-        `It will be judged against: ${criteria.join(' | ')}`,
-        'Research notes collected during the run:',
-        notes || '(no tool output was collected)',
-      ].join('\n'),
+      content: userContent.join('\n'),
     },
   ];
 }
 
 /** Asked when a criterion failed and budget remains. One focused repair pass. */
-export function repairPrompt(goal: string, failures: string[], artifact: string): ChatMessage[] {
+export function repairPrompt(
+  goal: string,
+  failures: string[],
+  artifact: string,
+  instruction?: string | null,
+): ChatMessage[] {
+  const userContent = [
+    `Goal: ${goal}`,
+    `Failed checks: ${failures.join(' | ')}`,
+  ];
+  if (instruction) {
+    userContent.push(
+      `OPERATOR INSTRUCTION: "${instruction}". If the failed checks conflict with this instruction (e.g. requested shorter length vs older word count), prioritize the operator instruction.`,
+    );
+  }
+  userContent.push('Current deliverable:', artifact);
+
   return [
     {
       role: 'system',
@@ -153,12 +187,7 @@ export function repairPrompt(goal: string, failures: string[], artifact: string)
     },
     {
       role: 'user',
-      content: [
-        `Goal: ${goal}`,
-        `Failed checks: ${failures.join(' | ')}`,
-        'Current deliverable:',
-        artifact,
-      ].join('\n'),
+      content: userContent.join('\n'),
     },
   ];
 }

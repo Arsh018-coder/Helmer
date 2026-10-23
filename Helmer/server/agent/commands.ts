@@ -124,8 +124,14 @@ async function drainCommands(ctx: AgentContext, state: RunControlState): Promise
 export async function handleCommands(ctx: AgentContext, state: RunControlState): Promise<void> {
   await drainCommands(ctx, state);
 
+  const pauseStart = Date.now();
   while (state.paused && !state.stopRequested) {
     await new Promise((resolve) => setTimeout(resolve, COMMAND_POLL_MS));
     await drainCommands(ctx, state);
+  }
+  const pausedMs = Date.now() - pauseStart;
+  if (pausedMs > 100) {
+    // Extend deadline by the amount of time spent paused so the seconds budget does not expire!
+    ctx.deadline += pausedMs;
   }
 }

@@ -201,6 +201,37 @@ async function executeAction(
   return outcome;
 }
 
+/** Adapt contract criteria if user redirected the run (e.g. requested shorter word length). */
+function adaptCriteriaForInstruction(
+  criteria: ContractInput['criteria'],
+  instruction?: string | null,
+): ContractInput['criteria'] {
+  if (!instruction) return criteria;
+
+  // Patterns: "reduce length to 100 words", "100 words", "around 100 words", "under 150 words"
+  const wordMatch = instruction.match(
+    /(?:reduce|cut|shrink|limit|to|around|about|under|approx(?:imately)?|between)?\s*(\d+)(?:\s*(?:to|-)\s*(\d+))?\s*words?/i,
+  );
+  if (wordMatch) {
+    const num1 = parseInt(wordMatch[1], 10);
+    const num2 = wordMatch[2] ? parseInt(wordMatch[2], 10) : null;
+    const min = num2 ? Math.min(num1, num2) : Math.max(20, num1 - 40);
+    const max = num2 ? Math.max(num1, num2) : num1 + 40;
+
+    return criteria.map((c) => {
+      if (c.check === CONTRACT_CHECK.wordRange) {
+        return {
+          ...c,
+          arg: [min, max],
+          text: `Deliverable formatted as briefing.md with ${min} to ${max} words (adapted for operator steering instruction).`,
+        };
+      }
+      return c;
+    });
+  }
+  return criteria;
+}
+
 /** Compose the final markdown and store it, replacing an empty deliverable. */
 async function composeDeliverable(input: {
   llm: LlmClient;
@@ -209,14 +240,17 @@ async function composeDeliverable(input: {
   contract: ContractInput;
   notes: string;
   stepNo: number;
+  instruction?: string | null;
 }): Promise<Deliverable> {
-  const { llm, ctx, goal, contract, notes, stepNo } = input;
+  const { llm, ctx, goal, contract, notes, stepNo, instruction } = input;
   const name = deliverableName(contract);
+  const activeCriteria = adaptCriteriaForInstruction(contract.criteria, instruction);
   const markdown = await llm.text(
     reportPrompt(
       goal,
-      contract.criteria.map((criterion) => criterion.text),
+      activeCriteria.map((criterion) => criterion.text),
       notes,
+      instruction,
     ),
   );
   const result = await runTool({
@@ -340,15 +374,21 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
   // ── Compose ────────────────────────────────────────────────────────────────
   const finalStepNo = stepsTaken + 1;
+  const activeContract: ContractInput = {
+    ...contract,
+    criteria: adaptCriteriaForInstruction(contract.criteria, state.instruction),
+  };
+
   if (!deliverable.name || !deliverable.content) {
     try {
       deliverable = await composeDeliverable({
         llm,
         ctx,
         goal: currentGoal(),
-        contract,
+        contract: activeContract,
         notes,
         stepNo: finalStepNo,
+        instruction: state.instruction,
       });
     } catch (error) {
       log.warn('could not compose a deliverable; verifying an empty result', {
@@ -362,7 +402,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   let verification: ContractVerification = await verifyContract({
     llm,
     ctx,
-    contract,
+    contract: activeContract,
     artifact: deliverable,
   });
 
@@ -372,11 +412,12 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       const repaired = await llm.text(
         repairPrompt(
           currentGoal(),
-          failedCriteriaText(verification.criteria, contract),
+          failedCriteriaText(verification.criteria, activeContract),
           deliverable.content,
+          state.instruction,
         ),
       );
-      const name = deliverableName(contract);
+      const name = deliverableName(activeContract);
       const result = await runTool({
         ctx,
         stepNo: finalStepNo,
@@ -384,7 +425,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
         args: { name, content: repaired },
       });
       deliverable = { name: result.artifactName ?? name, content: result.output };
-      verification = await verifyContract({ llm, ctx, contract, artifact: deliverable });
+      verification = await verifyContract({ llm, ctx, contract: activeContract, artifact: deliverable });
     } catch (error) {
       log.warn('repair pass failed; keeping the first verdict', {
         runId,

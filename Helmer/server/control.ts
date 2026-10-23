@@ -50,6 +50,15 @@ export async function submitCommand(
     },
   });
 
+  // Update run status in DB immediately so API status queries and UI reflect state without delay
+  if (submission.kind === COMMAND_KIND.pause) {
+    await db.run.update({ where: { id: runId }, data: { status: 'paused' } });
+  } else if (submission.kind === COMMAND_KIND.resume) {
+    await db.run.update({ where: { id: runId }, data: { status: 'running' } });
+  } else if (submission.kind === COMMAND_KIND.stop) {
+    await db.run.update({ where: { id: runId }, data: { status: 'stopped', finishedAt: new Date() } });
+  }
+
   // Chaos is consumed by the tool runner; announcing it as a user command would be misleading.
   if (submission.kind !== COMMAND_KIND.chaos) {
     await appendEvent(db, runId, EVENT_TYPE.commandReceived, {

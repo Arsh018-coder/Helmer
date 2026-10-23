@@ -101,8 +101,7 @@ function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   const port = process.env.PORT || 3000;
-  console.log('\n\x1b[1m\x1b[32m  ✔ Helmer is running!\x1b[0m');
-  console.log(`\x1b[1m\x1b[36m  ➜ Direct Link: \x1b[4mhttp://localhost:${port}/\x1b[0m\n`);
+  log.info('autonomous flight worker online', { tag: config.workerTag, target: `http://localhost:${port}/` });
 
   let isConfigured = false;
   try {

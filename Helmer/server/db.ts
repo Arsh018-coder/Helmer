@@ -10,6 +10,7 @@
  * handlers AND the worker (which runs under tsx, outside Next, so @/ is unavailable).
  */
 
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
 // Extend the global type so TypeScript knows about our stashed instance.

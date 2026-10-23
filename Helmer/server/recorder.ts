@@ -26,7 +26,7 @@ export const GENESIS = '0'.repeat(64);
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 
 /** How many times `appendEvent` retries when a concurrent writer took the seq. */
-const SEQ_RETRY_ATTEMPTS = 3;
+const SEQ_RETRY_ATTEMPTS = 10;
 
 /**
  * Stable JSON serialisation: object keys sorted, `undefined` values dropped.
@@ -119,6 +119,8 @@ export async function appendEvent(
     } catch (error) {
       if ((error as { code?: string }).code !== 'P2002') throw error;
       // P2002 = unique constraint on (runId, seq); another writer took this seq.
+      // Small randomized backoff lets concurrent transactions clear:
+      await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 40) + 15));
     }
   }
   throw new Error(`appendEvent: could not obtain a free seq for run ${runId}`);

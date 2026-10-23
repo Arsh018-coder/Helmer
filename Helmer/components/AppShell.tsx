@@ -4,7 +4,7 @@ import React, { useCallback, useState, useEffect, useRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentRun } from '@/lib/types';
 import {
-  ApiError, createRun, createShareLink, downloadArtifact, downloadBundle, getHealth, listRuns,
+  ApiError, createRun, createShareLink, downloadArtifact, downloadBundle, fetchArtifact, getHealth, listRuns,
   promptForAccessCode, submitChaos, submitCommand, tamperEvent, verifyChain,
   type HealthStatus,
   type RunSummary,
@@ -23,6 +23,7 @@ import Navbar from '@/components/Navbar';
 import MascotRobot from '@/components/MascotRobot';
 import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
+import DeliverableModal from '@/components/modals/DeliverableModal';
 import AuthModal from '@/components/modals/AuthModal';
 import ProfileDashboard from '@/components/ProfileDashboard';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -39,11 +40,9 @@ function summaryToRun(summary: RunSummary): AgentRun {
   const finished = summary.finishedAt ? Date.parse(summary.finishedAt) : Date.now();
   const safeCreated = Number.isFinite(created) ? created : Date.now();
   const status: AgentRun['status'] =
-    summary.status === 'failed' || summary.status === 'stopped'
-      ? 'stopped'
-      : summary.status === 'queued'
-        ? 'running'
-        : summary.status;
+    summary.status === 'queued'
+      ? 'running'
+      : summary.status;
   return {
     id: summary.id,
     goal: summary.goal,
@@ -51,7 +50,7 @@ function summaryToRun(summary: RunSummary): AgentRun {
     verdict: summary.verdict ?? 'unverified',
     driftScore: 100,
     stepsBudget: { current: 0, max: 8 },
-    timeBudget: { current: Math.max(0, Math.round((finished - safeCreated) / 1000)), max: 180 },
+    timeBudget: { current: Math.min(180, Math.max(0, Math.round((finished - safeCreated) / 1000))), max: 180 },
     llmBudget: { current: 0, max: 25 },
     criteria: [],
     plan: [],
@@ -112,8 +111,10 @@ export default function AppShell({ route, id }: AppShellProps) {
   );
 
   // API Provider & Key State (Phase 1)
-  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('gemini');
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('groq');
   const [apiKey, setApiKey] = useState<string>('');
+  const [showCustomKeyOverride, setShowCustomKeyOverride] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
 
   // Live Run State
   const [isRunPaused, setIsRunPaused] = useState(false);
@@ -140,6 +141,8 @@ export default function AppShell({ route, id }: AppShellProps) {
   // Modals
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [isRedirectModalOpen, setIsRedirectModalOpen] = useState(false);
+  const [isDeliverableModalOpen, setIsDeliverableModalOpen] = useState(false);
+  const [fetchedArtifactContent, setFetchedArtifactContent] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [redirectInstruction, setRedirectInstruction] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -193,6 +196,35 @@ export default function AppShell({ route, id }: AppShellProps) {
   // The landing hero prefers the shipped recording so it plays offline; every other screen shows
   // the live run.
   const replayRun = goldenRun ?? activeRun;
+
+  // Ensure full untruncated artifact is fetched directly from backend when ready
+  useEffect(() => {
+    if (!activeRunId) {
+      setFetchedArtifactContent(null);
+      return;
+    }
+    if (activeRun.status === 'completed' || activeRun.artifactContent) {
+      let cancelled = false;
+      fetchArtifact(activeRunId, shareToken || null)
+        .then((res) => {
+          if (!cancelled && res.content) {
+            setFetchedArtifactContent(res.content);
+          }
+        })
+        .catch(() => {
+          // Keep existing artifactContent
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [activeRunId, activeRun.status, activeRun.artifactContent, shareToken]);
+
+  const rawArtifact = fetchedArtifactContent || activeRun.artifactContent || '';
+  const artifactDisplayContent = rawArtifact.replace(/\n?…\[truncated\s+\d+\s+characters\]/g, '').trim();
+  const artifactWordCount = artifactDisplayContent
+    ? artifactDisplayContent.split(/\s+/).filter(Boolean).length
+    : 0;
 
   // The phone Steer page is rendered from a server page that never reads `searchParams`, so the
   // `?t=` share token is read here, once, on mount.
@@ -258,12 +290,16 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   // Keep the pause button in step with the status the server reports.
   useEffect(() => {
-    setIsRunPaused(activeRun.status === 'paused');
+    if (activeRun.status === 'paused') {
+      setIsRunPaused(true);
+    } else if (activeRun.status === 'running') {
+      setIsRunPaused(false);
+    }
   }, [activeRun.status]);
 
-  // Real-time live execution ticker for the active run
+  // Real-time live execution ticker for the active run (fallback when backend is not streaming events)
   useEffect(() => {
-    if (activeRun.status !== 'running' || isRunPaused) return;
+    if (activeRun.status !== 'running' || isRunPaused || (live.run && live.events.length > 0)) return;
 
     const timer = setInterval(() => {
       setRuns((prevRuns) =>
@@ -442,11 +478,13 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   const handleLaunchRun = async () => {
     const goal = composerGoal.trim();
-    if (!goal) return;
+    if (!goal || isLaunching) return;
+    setIsLaunching(true);
     try {
       const newId = await createRun(goal);
       await loadRuns();
       setSelectedRunId(newId);
+      setIsRunPaused(false);
       navigateTo(`/run/${newId}`);
     } catch {
       // Client-side autonomous live run execution
@@ -455,6 +493,8 @@ export default function AppShell({ route, id }: AppShellProps) {
       setSelectedRunId(newRun.id);
       setIsRunPaused(false);
       navigateTo(`/run/${newRun.id}`);
+    } finally {
+      setIsLaunching(false);
     }
   };
 
@@ -480,13 +520,14 @@ export default function AppShell({ route, id }: AppShellProps) {
 
     const settings = getProfileSettings();
     const activeKey =
-      settings.activeProvider === 'gemini'
+      apiKey ||
+      (settings.activeProvider === 'gemini'
         ? settings.geminiApiKey
         : settings.activeProvider === 'openai'
         ? settings.openaiApiKey
         : settings.activeProvider === 'claude'
         ? settings.anthropicApiKey
-        : settings.groqApiKey;
+        : settings.groqApiKey);
 
     try {
       const res = await fetch('/api/console/execute', {
@@ -494,7 +535,7 @@ export default function AppShell({ route, id }: AppShellProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           goal,
-          provider: settings.activeProvider,
+          provider: apiProvider || settings.activeProvider,
           model: settings.selectedModel,
           apiKeyOverride: activeKey || '',
         }),
@@ -1483,65 +1524,129 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               </div>
 
-              {/* Engine & Key Diagnostic Banner */}
+              {/* Default Active Project Engine Banner */}
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  background: 'rgba(14, 124, 134, 0.08)',
-                  border: '1px solid rgba(14, 124, 134, 0.22)',
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(22, 163, 74, 0.09) 0%, rgba(14, 124, 134, 0.05) 100%)',
+                  border: '1.5px solid rgba(22, 163, 74, 0.28)',
                   marginBottom: '16px',
-                  flexWrap: 'wrap',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: '8px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="badge-dot-green"></span>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 600, color: 'var(--text)' }}>
-                    {getProfileSettings().geminiApiKey || getProfileSettings().openaiApiKey
-                      ? 'LIVE API KEY CONFIGURED'
-                      : 'EMULATED MOCK KEY (TESTING MODE)'}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="badge-dot-green" style={{ animation: 'pulse 1.8s infinite' }}></span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '11.5px', fontWeight: 600, color: 'var(--ok)' }}>
+                      PROJECT ENGINE ACTIVE (PRE-CONFIGURED)
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>
+                    Model: <strong style={{ color: 'var(--text)' }}>Groq Qwen 2.5 (27B)</strong> · Search: <strong style={{ color: 'var(--text)' }}>Tavily API</strong>
                   </span>
                 </div>
-                <span style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-                  Target Provider: <strong>{getProfileSettings().activeProvider.toUpperCase()} ({getProfileSettings().selectedModel})</strong>
-                </span>
-              </div>
-
-              {/* API Provider Settings (Phase 1) */}
-              <div className="form-group">
-                <label className="form-label">LLM Provider & API Key</label>
-                <div className="glass-panel" style={{ padding: '16px', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                    <select
-                      className="form-select"
-                      value={apiProvider}
-                      onChange={(e) => setApiProvider(e.target.value as any)}
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: '12px' }}
-                    >
-                      <option value="gemini">Gemini 2.5 Flash</option>
-                      <option value="openai">OpenAI GPT-4o</option>
-                      <option value="groq">Groq Llama 3</option>
-                    </select>
-                  </div>
-                  <input
-                    type="password"
-                    className="form-input"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your API key (saved to browser storage)"
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text)', fontFamily: 'var(--mono)', fontSize: '12px' }}
-                  />
-                  <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-                    🔒 Key stored securely in localStorage. Never sent to our servers.
-                  </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.45 }}>
+                  ⚡ <strong>Zero Setup Required:</strong> Helmer runs out-of-the-box using the verified project credentials configured in <code>.env</code>. You do not need to enter an API key to launch or test runs.
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '28px', flexWrap: 'wrap', gap: '14px' }}>
+              {/* Collapsible Custom API Key Override (Optional) */}
+              <div style={{ marginBottom: '18px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomKeyOverride((prev) => !prev)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'none',
+                    border: 'none',
+                    fontFamily: 'var(--mono)',
+                    fontSize: '11.5px',
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    padding: '4px 0',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>{showCustomKeyOverride ? '▾ Hide' : '▸ Show'} Custom API Key Override (Optional)</span>
+                  {apiKey && (
+                    <span style={{ fontSize: '10px', background: 'rgba(14, 124, 134, 0.15)', color: 'var(--accent)', padding: '2px 7px', borderRadius: '4px' }}>
+                      Custom Key Active
+                    </span>
+                  )}
+                </button>
+
+                {showCustomKeyOverride && (
+                  <div
+                    className="glass-panel"
+                    style={{
+                      padding: '16px',
+                      marginTop: '10px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.55)',
+                      border: '1.5px solid rgba(255, 255, 255, 0.9)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                      <select
+                        className="form-select"
+                        value={apiProvider}
+                        onChange={(e) => setApiProvider(e.target.value as any)}
+                        style={{
+                          flex: 1,
+                          minWidth: '150px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          background: 'rgba(255,255,255,0.85)',
+                          border: '1px solid var(--stroke-border)',
+                          color: 'var(--text)',
+                          fontFamily: 'var(--mono)',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <option value="groq">Groq Qwen 2.5 (Fastest)</option>
+                        <option value="gemini">Google Gemini 2.5 Flash</option>
+                        <option value="openai">OpenAI GPT-4o</option>
+                      </select>
+                    </div>
+                    <input
+                      type="password"
+                      className="form-input"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Optional: Paste custom key to override .env (leave blank for default)"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.85)',
+                        border: '1px solid var(--stroke-border)',
+                        color: 'var(--text)',
+                        fontFamily: 'var(--mono)',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-3)' }}>
+                      <span>🔒 Optional personal key stored in local browser only.</span>
+                      {apiKey && (
+                        <button
+                          type="button"
+                          onClick={() => setApiKey('')}
+                          style={{ background: 'none', border: 'none', color: 'var(--err)', cursor: 'pointer', fontSize: '11px' }}
+                        >
+                          Clear & Reset to Default
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px', flexWrap: 'wrap', gap: '14px' }}>
                 <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>
                   CONFINEMENT: gVisor · WAL SQLite
                 </span>
@@ -1557,11 +1662,11 @@ export default function AppShell({ route, id }: AppShellProps) {
                     </svg>
                     {isConsoleExecuting ? 'Executing in Console…' : '▶ Test Engine in Console'}
                   </button>
-                  <button className="btn-pill btn-pill-primary" onClick={handleLaunchRun}>
+                  <button className="btn-pill btn-pill-primary" onClick={handleLaunchRun} disabled={isLaunching}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Launch Live Run →
+                    {isLaunching ? 'Launching Live Run…' : 'Launch Live Run →'}
                   </button>
                 </div>
               </div>
@@ -1701,8 +1806,32 @@ export default function AppShell({ route, id }: AppShellProps) {
                 <span className="badge-dot-green" aria-hidden="true" style={{ animation: activeRun.status === 'running' ? 'pulse 1.8s infinite' : 'none' }}></span>
                 <span className="protocol-text">RUN ID: {activeRun.id}</span>
               </span>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: '12px', color: activeRun.status === 'running' ? 'var(--accent)' : 'var(--text)', fontWeight: 600 }}>
-                {activeRun.status === 'running' ? '● LIVE EXECUTING' : activeRun.status === 'paused' ? '⏸ EXECUTION PAUSED' : activeRun.status === 'stopped' ? '✕ EXECUTION HALTED (E-STOP)' : '✓ EXECUTION SEALED'}
+              <span
+                style={{
+                  fontFamily: 'var(--mono)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color:
+                    activeRun.status === 'running'
+                      ? 'var(--accent)'
+                      : activeRun.status === 'completed'
+                      ? 'var(--ok)'
+                      : activeRun.status === 'paused'
+                      ? 'var(--warn)'
+                      : activeRun.status === 'failed'
+                      ? 'var(--err)'
+                      : 'var(--text-2)',
+                }}
+              >
+                {activeRun.status === 'running'
+                  ? '● LIVE EXECUTING'
+                  : activeRun.status === 'paused'
+                  ? '⏸ EXECUTION PAUSED'
+                  : activeRun.status === 'completed'
+                  ? '✓ EXECUTION VERIFIED & SEALED'
+                  : activeRun.status === 'failed'
+                  ? '✕ EXECUTION INTERRUPTED'
+                  : '✕ STOPPED BY OPERATOR (E-STOP)'}
               </span>
             </div>
 
@@ -1741,33 +1870,48 @@ export default function AppShell({ route, id }: AppShellProps) {
                 SUCCESS CRITERIA
               </div>
               <div className="criteria-list-mini">
-                {activeRun.criteria.map((c) => (
-                  <div key={c.id} className="crit-item-row">
-                    <span className={`crit-dot ${c.status}`} aria-hidden="true"></span>
-                    <div>
-                      <div>{c.text}</div>
-                      {c.evidence && (
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: '10.5px', color: 'var(--ok)', marginTop: '2px' }}>
-                          ↳ Evidence: {c.evidence}
-                        </div>
-                      )}
+                {activeRun.criteria.length === 0 ? (
+                  <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(14,124,134,0.3)', color: 'var(--text-2)', fontSize: '11.5px', fontFamily: 'var(--mono)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="badge-dot-accent" style={{ animation: 'pulse 1.2s infinite' }}></span>
+                      <span>{activeRun.status === 'running' ? 'Synthesizing verifiable criteria…' : 'No criteria registered.'}</span>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  activeRun.criteria.map((c) => (
+                    <div key={c.id} className="crit-item-row">
+                      <span className={`crit-dot ${c.status}`} aria-hidden="true"></span>
+                      <div>
+                        <div>{c.text}</div>
+                        {c.evidence && (
+                          <div style={{ fontFamily: 'var(--mono)', fontSize: '10.5px', color: 'var(--ok)', marginTop: '2px' }}>
+                            ↳ Evidence: {c.evidence}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text)', fontWeight: 600, marginBottom: '8px' }}>
                 PLAN TRAJECTORY
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {activeRun.plan.map((p) => (
-                  <div key={p.step_no} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px', fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
-                    <span>{p.step_no}. {p.title}</span>
-                    <span style={{ color: p.status === 'completed' ? 'var(--ok)' : 'var(--warn)' }}>
-                      {p.status === 'completed' ? '✓' : '...'}
-                    </span>
+                {activeRun.plan.length === 0 ? (
+                  <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: 'var(--text-3)', fontSize: '11.5px', fontFamily: 'var(--mono)' }}>
+                    {activeRun.status === 'running' ? 'Formulating deterministic trajectory…' : 'No plan recorded.'}
                   </div>
-                ))}
+                ) : (
+                  activeRun.plan.map((p) => (
+                    <div key={p.step_no} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px', fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
+                      <span>{p.step_no}. {p.title}</span>
+                      <span style={{ color: p.status === 'completed' ? 'var(--ok)' : 'var(--warn)' }}>
+                        {p.status === 'completed' ? '✓' : '...'}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -1777,6 +1921,21 @@ export default function AppShell({ route, id }: AppShellProps) {
                 <span>2. Execution Timeline</span>
                 <span style={{ fontSize: '10px' }}>{activeRun.steps.length} EVENTS</span>
               </div>
+
+              {activeRun.steps.length === 0 && activeRun.status === 'running' && (
+                <div className="step-card-collapsible" style={{ opacity: 0.95, borderStyle: 'dashed' }}>
+                  <div className="step-card-header">
+                    <div className="step-card-left-info">
+                      <span className="step-no-badge">INIT</span>
+                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>Kernel Engine Boot & gVisor Sandbox</span>
+                    </div>
+                    <span className="step-tool-chip">kernel</span>
+                  </div>
+                  <div className="step-thought-text" style={{ fontStyle: 'italic', color: 'var(--accent)' }}>
+                    "Autonomous flight loop initialized. Preparing deterministic intent contract..."
+                  </div>
+                </div>
+              )}
 
               {activeRun.steps.map((st) => (
                 <div
@@ -1817,24 +1976,128 @@ export default function AppShell({ route, id }: AppShellProps) {
               ))}
 
               {/* Deliverable result state if completed */}
-              {activeRun.artifactContent && (
+              {artifactDisplayContent && (
                 <div className="result-deliverable-card glass-panel">
-                  <div className="panel-title-mono">
-                    <span>Delivered Artifact (briefing.md)</span>
-                    <button
-                      className="btn-pill btn-pill-primary btn-pill-sm"
-                      onClick={handleDownload}
-                    >
-                      Download Deliverable
-                    </button>
+                  <div
+                    className="panel-title-mono"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>Delivered Artifact (briefing.md)</span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: 'rgba(52, 199, 89, 0.15)',
+                          color: 'var(--ok)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        ✓ {artifactWordCount} words
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        className="btn-pill btn-pill-secondary btn-pill-sm"
+                        onClick={() => setIsDeliverableModalOpen(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 600,
+                          background: 'rgba(0, 113, 227, 0.08)',
+                          borderColor: 'rgba(0, 113, 227, 0.3)',
+                          color: 'var(--accent)',
+                        }}
+                        title="Maximize deliverable to wide view"
+                      >
+                        ⛶ Maximize
+                      </button>
+                      <button
+                        className="btn-pill btn-pill-primary btn-pill-sm"
+                        onClick={handleDownload}
+                      >
+                        Download Deliverable
+                      </button>
+                    </div>
                   </div>
-                  <div className="markdown-preview-box">
-                    <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{activeRun.artifactContent}</pre>
+
+                  <div
+                    className="markdown-preview-box"
+                    style={{
+                      maxHeight: '340px',
+                      overflowY: 'auto',
+                      padding: '18px 20px',
+                    }}
+                  >
+                    <pre
+                      style={{
+                        whiteSpace: 'pre-wrap',
+                        fontFamily: 'inherit',
+                        margin: 0,
+                        fontSize: '13.5px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {artifactDisplayContent}
+                    </pre>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '10px',
+                      fontSize: '11.5px',
+                      color: 'var(--text-3)',
+                    }}
+                  >
+                    <span>Capped preview · Click Maximize for full wide reading</span>
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: '11.5px',
+                        color: 'var(--accent)',
+                        cursor: 'pointer',
+                        background: 'none',
+                        border: 'none',
+                        fontWeight: 600,
+                        padding: 0,
+                      }}
+                      onClick={() => setIsDeliverableModalOpen(true)}
+                    >
+                      Open Full View ↗
+                    </button>
                   </div>
 
                   {activeRun.incidentReport && (
-                    <div style={{ marginTop: '16px', padding: '14px', borderRadius: '10px', background: 'rgba(255, 214, 10, 0.08)', border: '1px solid rgba(255, 214, 10, 0.25)' }}>
-                      <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '12px', color: 'var(--warn)' }}>{activeRun.incidentReport}</pre>
+                    <div
+                      style={{
+                        marginTop: '16px',
+                        padding: '14px',
+                        borderRadius: '10px',
+                        background: 'rgba(255, 214, 10, 0.08)',
+                        border: '1px solid rgba(255, 214, 10, 0.25)',
+                      }}
+                    >
+                      <pre
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'inherit',
+                          fontSize: '12px',
+                          color: 'var(--warn)',
+                        }}
+                      >
+                        {activeRun.incidentReport}
+                      </pre>
                     </div>
                   )}
                 </div>
@@ -1897,7 +2160,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                     <span>{activeRun.stepsBudget.current} / {activeRun.stepsBudget.max}</span>
                   </div>
                   <div className="chaos-bar-track">
-                    <div className="chaos-bar-fill" style={{ width: `${(activeRun.stepsBudget.current / activeRun.stepsBudget.max) * 100}%` }}></div>
+                    <div className="chaos-bar-fill" style={{ width: `${Math.min(100, Math.max(0, (activeRun.stepsBudget.current / (activeRun.stepsBudget.max || 1)) * 100))}%` }}></div>
                   </div>
                 </div>
                 <div className="budget-bar-item">
@@ -1906,7 +2169,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                     <span>{activeRun.timeBudget.current}s / {activeRun.timeBudget.max}s</span>
                   </div>
                   <div className="chaos-bar-track">
-                    <div className="chaos-bar-fill" style={{ width: `${(activeRun.timeBudget.current / activeRun.timeBudget.max) * 100}%` }}></div>
+                    <div className="chaos-bar-fill" style={{ width: `${Math.min(100, Math.max(0, (activeRun.timeBudget.current / (activeRun.timeBudget.max || 1)) * 100))}%` }}></div>
                   </div>
                 </div>
                 <div className="budget-bar-item">
@@ -1915,7 +2178,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                     <span>{activeRun.llmBudget.current} / {activeRun.llmBudget.max}</span>
                   </div>
                   <div className="chaos-bar-track">
-                    <div className="chaos-bar-fill" style={{ width: `${(activeRun.llmBudget.current / activeRun.llmBudget.max) * 100}%` }}></div>
+                    <div className="chaos-bar-fill" style={{ width: `${Math.min(100, Math.max(0, (activeRun.llmBudget.current / (activeRun.llmBudget.max || 1)) * 100))}%` }}></div>
                   </div>
                   {activeRun.tokens && (
                     <div className="budget-bar-labels" style={{ marginTop: '4px' }}>
@@ -2263,8 +2526,14 @@ export default function AppShell({ route, id }: AppShellProps) {
       )}
 
       {/* ===================== POPUPS & MODALS ===================== */}
+      <DeliverableModal
+        isOpen={isDeliverableModalOpen}
+        onClose={() => setIsDeliverableModalOpen(false)}
+        content={artifactDisplayContent}
+        goal={activeRun.goal}
+        onDownload={handleDownload}
+      />
 
-      {/* ===================== POPUPS & MODALS ===================== */}
       <QrModal
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}

@@ -172,7 +172,16 @@ export async function createRun(
 ): Promise<string> {
   const active = await findActiveRun(db, input.workerTag);
   if (active) {
-    throw runActive(`Run ${active.id} is still ${active.status}; stop it before starting another`);
+    const ageMs = Date.now() - (Date.parse(active.createdAt) || 0);
+    // If previous run is paused or stale (>90s), auto-stop it so the new run can proceed immediately without blocking!
+    if (active.status === 'paused' || ageMs > 90_000) {
+      await db.run.update({
+        where: { id: active.id },
+        data: { status: RUN_STATUS.stopped, finishedAt: new Date() },
+      });
+    } else {
+      throw runActive(`Run ${active.id} is still ${active.status}; stop it before starting another`);
+    }
   }
 
   const budget: BudgetConfig = { ...defaultBudget(), ...input.budget };

@@ -39,7 +39,7 @@ export interface RunStep {
 export interface AgentRun {
   id: string;
   goal: string;
-  status: 'running' | 'paused' | 'completed' | 'stopped';
+  status: 'running' | 'paused' | 'completed' | 'stopped' | 'failed';
   verdict: 'verified' | 'partially_verified' | 'unverified';
   driftScore: number;
   stepsBudget: { current: number; max: number };

@@ -65,13 +65,54 @@ export function useRun(id: string | null, options: UseRunOptions = {}): UseRunRe
   const [error, setError] = useState<ApiError | null>(null);
   // Ticks on every poll so the live duration and time budget keep counting even between events.
   const [now, setNow] = useState(() => Date.now());
-  const [restartToken, setRestartToken] = useState(0);
-
   const lastSeqRef = useRef(0);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPollingRef = useRef(false);
+  const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => setRestartToken((value) => value + 1), []);
+  const poll = useCallback(async (): Promise<void> => {
+    if (!id || cancelledRef.current || isPollingRef.current) return;
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    isPollingRef.current = true;
+
+    try {
+      const page = await listEvents(id, lastSeqRef.current, token);
+      if (cancelledRef.current) return;
+
+      if (page.events.length > 0) {
+        lastSeqRef.current = page.events[page.events.length - 1].seq;
+        setEvents((previous) => [...previous, ...page.events]);
+      }
+      setStatus(page.status);
+      setError(null);
+      setLoading(false);
+      setNow(Date.now());
+
+      if (!TERMINAL_RUN_STATUSES.includes(page.status)) {
+        pollTimerRef.current = setTimeout(poll, page.status === 'paused' ? POLL_IDLE_MS : POLL_ACTIVE_MS);
+      }
+    } catch (cause) {
+      if (cancelledRef.current) return;
+      setError(
+        cause instanceof ApiError ? cause : new ApiError(0, 'network', 'The run could not be polled.'),
+      );
+      setLoading(false);
+      pollTimerRef.current = setTimeout(poll, POLL_IDLE_MS);
+    } finally {
+      isPollingRef.current = false;
+    }
+  }, [id, token]);
+
+  const refresh = useCallback(() => {
+    void poll();
+  }, [poll]);
 
   useEffect(() => {
+    cancelledRef.current = false;
+
     if (!id) {
       lastSeqRef.current = 0;
       setEvents([]);
@@ -82,10 +123,7 @@ export function useRun(id: string | null, options: UseRunOptions = {}): UseRunRe
       return;
     }
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    // A new run (or a refresh) starts from an empty timeline and the beginning of the chain.
+    // A fresh run starts from an empty timeline and beginning of chain
     lastSeqRef.current = 0;
     setEvents([]);
     setStatus(null);
@@ -95,48 +133,22 @@ export function useRun(id: string | null, options: UseRunOptions = {}): UseRunRe
 
     getRun(id, token)
       .then((value) => {
-        if (!cancelled) setDetail(value);
+        if (!cancelledRef.current) setDetail(value);
       })
       .catch((cause: unknown) => {
-        // The events poll reports the same failure with a better message; ignore this one.
-        if (!cancelled && cause instanceof ApiError && cause.status !== 404) setError(cause);
+        if (!cancelledRef.current && cause instanceof ApiError && cause.status !== 404) setError(cause);
       });
-
-    const poll = async (): Promise<void> => {
-      if (cancelled) return;
-
-      try {
-        const page = await listEvents(id, lastSeqRef.current, token);
-        if (cancelled) return;
-
-        if (page.events.length > 0) {
-          lastSeqRef.current = page.events[page.events.length - 1].seq;
-          setEvents((previous) => [...previous, ...page.events]);
-        }
-        setStatus(page.status);
-        setError(null);
-        setLoading(false);
-        setNow(Date.now());
-
-        if (TERMINAL_RUN_STATUSES.includes(page.status)) return;
-        timer = setTimeout(poll, page.status === 'paused' ? POLL_IDLE_MS : POLL_ACTIVE_MS);
-      } catch (cause) {
-        if (cancelled) return;
-        setError(
-          cause instanceof ApiError ? cause : new ApiError(0, 'network', 'The run could not be polled.'),
-        );
-        setLoading(false);
-        timer = setTimeout(poll, POLL_IDLE_MS);
-      }
-    };
 
     void poll();
 
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      cancelledRef.current = true;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
-  }, [id, token, restartToken]);
+  }, [id, token, poll]);
 
   const run = useMemo(() => {
     if (!id) return null;

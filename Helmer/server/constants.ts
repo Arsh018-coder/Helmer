@@ -182,7 +182,7 @@ export const FETCH_TEXT_MAX_CHARS = 6_000;
 /** Artifact cap enforced by `write_file` (AGENTS.md section 8). */
 export const MAX_ARTIFACT_BYTES = 50 * 1024;
 /** Tool outputs stored in events are truncated to stay inside the Supabase free tier. */
-export const TOOL_OUTPUT_MAX_CHARS = 4_000;
+export const TOOL_OUTPUT_MAX_CHARS = 12_000;
 
 /** Running research notes handed back to the model; older detail is dropped past this size. */
 export const AGENT_NOTES_MAX_CHARS = 12_000;

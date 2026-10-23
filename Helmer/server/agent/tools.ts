@@ -439,7 +439,7 @@ export async function runTool(input: RunToolInput): Promise<ToolResult> {
       summary: result.summary,
       ms,
       urls: result.urls,
-      output: truncate(result.output),
+      output: tool === TOOL_NAME.writeFile ? result.output : truncate(result.output),
       artifact: result.artifactName,
     });
 
