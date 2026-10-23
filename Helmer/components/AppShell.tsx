@@ -1626,12 +1626,7 @@ export default function AppShell({ route, id }: AppShellProps) {
       {currentPath === '/console' && (
         <div className="page-wrapper container">
           <div className="page-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
-              <div className="console-header-logo-3d">
-                <img src="/logo.png" alt="Helmer Logo" className="console-header-logo-img" />
-              </div>
-              <h1 className="page-title" style={{ margin: 0 }}>Autonomous Goal Composer</h1>
-            </div>
+            <h1 className="page-title">Autonomous Goal Composer</h1>
             <p className="page-subtitle">
               Define high-level operational intent. Helmer creates an explicit contract with verifiable criteria, runs tools in sandboxes, and verifies results.
             </p>

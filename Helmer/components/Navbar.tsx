@@ -109,7 +109,7 @@ export default function Navbar({
     { path: '/console', label: 'Console', match: (p: string) => p === '/console' },
     { path: runPath, label: 'Live Run', match: (p: string) => p.startsWith('/run'), isLive: true },
     { path: '/history', label: 'History', match: (p: string) => p === '/history' },
-    { path: steerPath, label: 'Mobile Steer', match: (p: string) => p.startsWith('/r') && !p.startsWith('/run') },
+    // { path: steerPath, label: 'Mobile Steer', match: (p: string) => p.startsWith('/r') && !p.startsWith('/run') },
   ];
 
   return (
