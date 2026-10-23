@@ -30,7 +30,7 @@ const AuthModal = dynamic(() => import('@/components/modals/AuthModal'), { ssr: 
 const ProfileDashboard = dynamic(() => import('@/components/ProfileDashboard'), { ssr: false });
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
-import { getProfileSettings } from '@/lib/profileSettings';
+import { getProfileSettings, maskApiKey, type ProfileSettings } from '@/lib/profileSettings';
 
 interface AppShellProps {
   route: string;
@@ -117,14 +117,13 @@ export default function AppShell({ route, id }: AppShellProps) {
    */
   const activeRunId = routeRunId || selectedRunId || 'tx_883a90c1f';
   const [shareToken, setShareToken] = useState<string>('');
-  const [composerGoal, setComposerGoal] = useState<string>(
-    'Synthesize Q3 financial reports, reconcile multi-currency wire drift, and propose currency hedge allocations.'
-  );
+  const [composerGoal, setComposerGoal] = useState<string>('');
 
-  // API Provider & Key State (Phase 1)
-  const [apiProvider, setApiProvider] = useState<'gemini' | 'openai' | 'groq'>('groq');
+  // API Key Source: 'system' uses the server/app credentials (.env), 'profile' uses keys saved in ProfileDashboard, 'custom' uses manual inline override
+  const [keySource, setKeySource] = useState<'system' | 'profile' | 'custom'>('system');
+  const [apiProvider, setApiProvider] = useState<'groq' | 'gemini' | 'openai' | 'claude'>('groq');
   const [apiKey, setApiKey] = useState<string>('');
-  const [showCustomKeyOverride, setShowCustomKeyOverride] = useState(false);
+  const [profileSettingsState, setProfileSettingsState] = useState(getProfileSettings());
   const [isLaunching, setIsLaunching] = useState(false);
 
   // Live Run State
@@ -172,12 +171,23 @@ export default function AppShell({ route, id }: AppShellProps) {
     void refreshUserSession().then((verified) => {
       if (verified) setUser(verified);
     });
+    setProfileSettingsState(getProfileSettings());
+
     const handleAuthChange = (e: Event) => {
       const customEvent = e as CustomEvent<User | null>;
       setUser(customEvent.detail ?? getCurrentUser());
     };
+    const handleSettingsChange = (e: Event) => {
+      const customEvent = e as CustomEvent<ProfileSettings>;
+      setProfileSettingsState(customEvent.detail ?? getProfileSettings());
+    };
+
     window.addEventListener('helmer-auth-change', handleAuthChange);
-    return () => window.removeEventListener('helmer-auth-change', handleAuthChange);
+    window.addEventListener('helmer-settings-change', handleSettingsChange);
+    return () => {
+      window.removeEventListener('helmer-auth-change', handleAuthChange);
+      window.removeEventListener('helmer-settings-change', handleSettingsChange);
+    };
   }, []);
 
   // Pop and disappear welcome toast for authenticated user
@@ -561,10 +571,53 @@ export default function AppShell({ route, id }: AppShellProps) {
     return () => clearInterval(timer);
   }, [isReplaying, replaySpeed, replayRun.steps.length]);
 
+  const getEffectiveApiKeyAndProvider = () => {
+    const settings = getProfileSettings();
+    if (keySource === 'custom' && apiKey.trim()) {
+      return { provider: apiProvider, key: apiKey.trim(), source: 'custom' as const };
+    }
+    if (keySource === 'profile') {
+      const pKey =
+        settings.activeProvider === 'gemini'
+          ? settings.geminiApiKey
+          : settings.activeProvider === 'openai'
+          ? settings.openaiApiKey
+          : settings.activeProvider === 'claude'
+          ? settings.anthropicApiKey
+          : settings.groqApiKey;
+      if (pKey) {
+        return { provider: settings.activeProvider, key: pKey, source: 'profile' as const };
+      }
+    }
+    // Fallback or explicit 'system'
+    return { provider: 'groq' as const, key: '', source: 'system' as const };
+  };
+
   const handleLaunchRun = async () => {
     const goal = composerGoal.trim();
     if (!goal || isLaunching) return;
     setIsLaunching(true);
+
+    // Sync selected credentials to runtime engine before launch
+    try {
+      const eff = getEffectiveApiKeyAndProvider();
+      if (eff.key) {
+        await fetch('/api/settings/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activeProvider: eff.provider,
+            ...(eff.provider === 'gemini' ? { geminiApiKey: eff.key } : {}),
+            ...(eff.provider === 'openai' ? { openaiApiKey: eff.key } : {}),
+            ...(eff.provider === 'claude' ? { anthropicApiKey: eff.key } : {}),
+            ...(eff.provider === 'groq' ? { groqApiKey: eff.key } : {}),
+          }),
+        });
+      }
+    } catch {
+      // ignore
+    }
+
     try {
       const newId = await createRun(goal);
       await loadRuns();
@@ -603,16 +656,8 @@ export default function AppShell({ route, id }: AppShellProps) {
       { id: 'b1', timestamp: nowIso(), level: 'stage', tag: 'BOOT', message: `Initializing Autonomous Flight Engine for: "${goal}"` },
     ]);
 
+    const eff = getEffectiveApiKeyAndProvider();
     const settings = getProfileSettings();
-    const activeKey =
-      apiKey ||
-      (settings.activeProvider === 'gemini'
-        ? settings.geminiApiKey
-        : settings.activeProvider === 'openai'
-        ? settings.openaiApiKey
-        : settings.activeProvider === 'claude'
-        ? settings.anthropicApiKey
-        : settings.groqApiKey);
 
     try {
       const res = await fetch('/api/console/execute', {
@@ -620,9 +665,9 @@ export default function AppShell({ route, id }: AppShellProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           goal,
-          provider: apiProvider || settings.activeProvider,
+          provider: eff.provider,
           model: settings.selectedModel,
-          apiKeyOverride: activeKey || '',
+          apiKeyOverride: eff.key || '',
         }),
       });
       const data = await res.json();
@@ -1711,124 +1756,171 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               </div>
 
-              {/* Default Active Project Engine Banner */}
+              {/* API Engine & Key Source Selection Control */}
               <div
                 style={{
-                  padding: '14px 16px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, rgba(22, 163, 74, 0.09) 0%, rgba(14, 124, 134, 0.05) 100%)',
-                  border: '1.5px solid rgba(22, 163, 74, 0.28)',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
+                  padding: '16px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 255, 255, 0.75)',
+                  border: '1.5px solid var(--stroke-border)',
+                  marginBottom: '18px',
+                  boxShadow: '0 4px 18px rgba(11, 31, 58, 0.05)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="badge-dot-green" style={{ animation: 'pulse 1.8s infinite' }}></span>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: '11.5px', fontWeight: 600, color: 'var(--ok)' }}>
-                      PROJECT ENGINE ACTIVE (PRE-CONFIGURED)
+                    <span className="badge-dot-accent" style={{ width: '8px', height: '8px' }}></span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.04em' }}>
+                      EXECUTION CREDENTIAL SOURCE
                     </span>
                   </div>
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>
-                    Model: <strong style={{ color: 'var(--text)' }}>Groq Qwen 2.5 (27B)</strong> · Search: <strong style={{ color: 'var(--text)' }}>Tavily API</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                    ACTIVE FOR LIVE RUN & CONSOLE TEST
                   </span>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.45 }}>
-                  ⚡ <strong>Zero Setup Required:</strong> Helmer runs out-of-the-box using the verified project credentials configured in <code>.env</code>. You do not need to enter an API key to launch or test runs.
-                </div>
-              </div>
 
-              {/* Collapsible Custom API Key Override (Optional) */}
-              <div style={{ marginBottom: '18px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowCustomKeyOverride((prev) => !prev)}
+                {/* 2-way selector tabs: Helmer LLM vs User Profile Key */}
+                <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    fontFamily: 'var(--mono)',
-                    fontSize: '11.5px',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                    padding: '4px 0',
-                    fontWeight: 600,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '10px',
+                    marginBottom: '14px',
                   }}
                 >
-                  <span>{showCustomKeyOverride ? '▾ Hide' : '▸ Show'} Custom API Key Override (Optional)</span>
-                  {apiKey && (
-                    <span style={{ fontSize: '10px', background: 'rgba(14, 124, 134, 0.15)', color: 'var(--accent)', padding: '2px 7px', borderRadius: '4px' }}>
-                      Custom Key Active
-                    </span>
-                  )}
-                </button>
-
-                {showCustomKeyOverride && (
-                  <div
-                    className="glass-panel"
+                  {/* Option 1: Helmer LLM (Built-in) */}
+                  <button
+                    type="button"
+                    onClick={() => setKeySource('system')}
                     style={{
-                      padding: '16px',
-                      marginTop: '10px',
-                      borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.55)',
-                      border: '1.5px solid rgba(255, 255, 255, 0.9)',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: keySource === 'system' ? '2px solid var(--ok)' : '1px solid var(--stroke-border)',
+                      background: keySource === 'system' ? 'rgba(22, 163, 74, 0.08)' : 'rgba(255, 255, 255, 0.7)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                      boxShadow: keySource === 'system' ? '0 4px 14px rgba(22, 163, 74, 0.12)' : 'none',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-                      <select
-                        className="form-select"
-                        value={apiProvider}
-                        onChange={(e) => setApiProvider(e.target.value as any)}
-                        style={{
-                          flex: 1,
-                          minWidth: '150px',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          background: 'rgba(255,255,255,0.85)',
-                          border: '1px solid var(--stroke-border)',
-                          color: 'var(--text)',
-                          fontFamily: 'var(--mono)',
-                          fontSize: '12px',
-                        }}
-                      >
-                        <option value="groq">Groq Qwen 2.5 (Fastest)</option>
-                        <option value="gemini">Google Gemini 2.5 Flash</option>
-                        <option value="openai">OpenAI GPT-4o</option>
-                      </select>
-                    </div>
-                    <input
-                      type="password"
-                      className="form-input"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Optional: Paste custom key to override .env (leave blank for default)"
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        background: 'rgba(255,255,255,0.85)',
-                        border: '1px solid var(--stroke-border)',
-                        color: 'var(--text)',
-                        fontFamily: 'var(--mono)',
-                        fontSize: '12px',
-                      }}
-                    />
-                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-3)' }}>
-                      <span>🔒 Optional personal key stored in local browser only.</span>
-                      {apiKey && (
-                        <button
-                          type="button"
-                          onClick={() => setApiKey('')}
-                          style={{ background: 'none', border: 'none', color: 'var(--err)', cursor: 'pointer', fontSize: '11px' }}
-                        >
-                          Clear & Reset to Default
-                        </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="badge-dot-green" style={{ width: '8px', height: '8px', animation: 'pulse 1.8s infinite' }}></span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: keySource === 'system' ? 'var(--ok)' : 'var(--text)' }}>
+                          Helmer LLM (Built-in)
+                        </span>
+                      </div>
+                      {keySource === 'system' && (
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'var(--ok)', color: '#fff', fontFamily: 'var(--mono)' }}>
+                          ACTIVE
+                        </span>
                       )}
                     </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-2)', lineHeight: 1.4 }}>
+                      ⚡ Groq Qwen 2.5 (27B) + Tavily API · Zero configuration required
+                    </div>
+                  </button>
+
+                  {/* Option 2: User Profile Key */}
+                  <button
+                    type="button"
+                    onClick={() => setKeySource('profile')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: keySource === 'profile' ? '2px solid var(--accent)' : '1px solid var(--stroke-border)',
+                      background: keySource === 'profile' ? 'rgba(14, 124, 134, 0.08)' : 'rgba(255, 255, 255, 0.7)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.15s ease',
+                      boxShadow: keySource === 'profile' ? '0 4px 14px rgba(14, 124, 134, 0.15)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: (profileSettingsState.anthropicApiKey || profileSettingsState.geminiApiKey || profileSettingsState.openaiApiKey || profileSettingsState.groqApiKey) ? 'var(--accent)' : 'var(--warn)',
+                            display: 'inline-block',
+                          }}
+                        ></span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: keySource === 'profile' ? 'var(--accent)' : 'var(--text)' }}>
+                          User Profile Key
+                        </span>
+                      </div>
+                      {keySource === 'profile' && (
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'var(--accent)', color: '#fff', fontFamily: 'var(--mono)' }}>
+                          ACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-2)', lineHeight: 1.4 }}>
+                      🔑 {profileSettingsState.activeProvider.toUpperCase()} ({profileSettingsState.selectedModel})
+                    </div>
+                  </button>
+                </div>
+
+                {/* Sub-panels displaying active credentials and details */}
+                {keySource === 'system' && (
+                  <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(22, 163, 74, 0.06)', border: '1px solid rgba(22, 163, 74, 0.22)', fontSize: '12px', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <span>Using <strong>Helmer Built-in LLM Engine</strong> (Groq LPU Inference + Tavily Grounding)</span>
+                      <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '2px', fontFamily: 'var(--mono)' }}>
+                        Default engine active for all runs · 100% operational
+                      </div>
+                    </div>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--ok)', fontWeight: 700, background: 'rgba(34, 197, 94, 0.15)', padding: '3px 8px', borderRadius: '6px' }}>
+                      READY
+                    </span>
+                  </div>
+                )}
+
+                {keySource === 'profile' && (
+                  <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(14, 124, 134, 0.06)', border: '1px solid rgba(14, 124, 134, 0.22)', fontSize: '12px' }}>
+                    {(() => {
+                      const p = profileSettingsState.activeProvider;
+                      const k = p === 'gemini' ? profileSettingsState.geminiApiKey : p === 'openai' ? profileSettingsState.openaiApiKey : p === 'claude' ? profileSettingsState.anthropicApiKey : profileSettingsState.groqApiKey;
+                      if (!k) {
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                            <span style={{ color: 'var(--warn)', fontWeight: 500 }}>
+                              ⚠️ No API key saved for <strong>{p.toUpperCase()}</strong> in Profile. Add it in Profile or switch to Helmer LLM.
+                            </span>
+                            <button
+                              type="button"
+                              className="btn-pill btn-pill-secondary btn-pill-sm"
+                              onClick={() => navigateTo('/profile')}
+                              style={{ fontSize: '11.5px', fontWeight: 600 }}
+                            >
+                              Open Profile & Keys →
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <div>
+                            <div style={{ color: 'var(--text)', fontWeight: 600 }}>
+                              Active Provider: <span style={{ color: 'var(--accent)' }}>{p.toUpperCase()}</span> ({profileSettingsState.selectedModel})
+                            </div>
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
+                              Key: <code>{maskApiKey(k)}</code> · Synchronized with worker sandbox
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-pill btn-pill-secondary btn-pill-sm"
+                            onClick={() => navigateTo('/profile')}
+                            style={{ fontSize: '11px' }}
+                          >
+                            Manage in Profile ↗
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

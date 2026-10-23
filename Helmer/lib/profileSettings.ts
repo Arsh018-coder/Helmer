@@ -76,6 +76,14 @@ export const AI_PROVIDERS: Record<AiProvider, ProviderMeta> = {
   },
 };
 
+export interface CustomApiKey {
+  id: string;
+  name: string;
+  providerOrModel: string;
+  apiKey: string;
+  createdAt: string;
+}
+
 export interface ProfileSettings {
   activeProvider: AiProvider;
   selectedModel: string;
@@ -83,6 +91,7 @@ export interface ProfileSettings {
   geminiApiKey: string;
   openaiApiKey: string;
   groqApiKey: string;
+  customKeys?: CustomApiKey[];
   workerTag: string;
   workerPort: number;
   sessionToken: string;
@@ -99,6 +108,7 @@ export const DEFAULT_SETTINGS: ProfileSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   groqApiKey: '',
+  customKeys: [],
   workerTag: 'helmer-worker-alpha-01',
   workerPort: 3000,
   sessionToken: 'hlm_ses_9f4e2b819c',
@@ -159,4 +169,82 @@ export function maskApiKey(key: string): string {
   const prefix = trimmed.slice(0, 7);
   const suffix = trimmed.slice(-4);
   return `${prefix}••••••••••••${suffix}`;
+}
+
+export interface KeyValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+/**
+ * Validates that an API key matches the expected format for a given provider.
+ * Throws or returns an error message if a key belonging to another model/provider
+ * or an invalid format is entered.
+ */
+export function validateApiKeyFormat(provider: AiProvider, rawKey: string): KeyValidationResult {
+  const key = rawKey.trim();
+  if (!key) return { valid: true };
+
+  // Detect cross-provider mismatches
+  if (provider === 'gemini') {
+    if (key.startsWith('sk-ant-')) {
+      return { valid: false, error: 'Detected Anthropic Claude key! This field only accepts Google Gemini API keys (starting with AIzaSy... or AQ...).' };
+    }
+    if (key.startsWith('sk-') || key.startsWith('sk-proj-')) {
+      return { valid: false, error: 'Detected OpenAI key! This field only accepts Google Gemini API keys (starting with AIzaSy... or AQ...).' };
+    }
+    if (key.startsWith('gsk_')) {
+      return { valid: false, error: 'Detected Groq key! This field only accepts Google Gemini API keys (starting with AIzaSy... or AQ...).' };
+    }
+    if (!key.startsWith('AIzaSy') && !key.startsWith('AQ.') && key.length < 20) {
+      return { valid: false, error: 'Invalid Google Gemini API key format. Standard keys start with "AIzaSy" or "AQ.".' };
+    }
+  } else if (provider === 'openai') {
+    if (key.startsWith('sk-ant-')) {
+      return { valid: false, error: 'Detected Anthropic Claude key! This field only accepts OpenAI API keys (starting with sk- or sk-proj-).' };
+    }
+    if (key.startsWith('AIzaSy') || key.startsWith('AQ.')) {
+      return { valid: false, error: 'Detected Google Gemini key! This field only accepts OpenAI API keys (starting with sk- or sk-proj-).' };
+    }
+    if (key.startsWith('gsk_')) {
+      return { valid: false, error: 'Detected Groq key! This field only accepts OpenAI API keys (starting with sk- or sk-proj-).' };
+    }
+    if (!key.startsWith('sk-')) {
+      return { valid: false, error: 'Invalid OpenAI API key format. Keys must start with "sk-".' };
+    }
+    if (key.length < 25) {
+      return { valid: false, error: 'OpenAI API key is too short. Please verify your complete key.' };
+    }
+  } else if (provider === 'claude') {
+    if (key.startsWith('AIzaSy') || key.startsWith('AQ.')) {
+      return { valid: false, error: 'Detected Google Gemini key! This field only accepts Anthropic Claude keys (starting with sk-ant-).' };
+    }
+    if (key.startsWith('gsk_')) {
+      return { valid: false, error: 'Detected Groq key! This field only accepts Anthropic Claude keys (starting with sk-ant-).' };
+    }
+    if (key.startsWith('sk-proj-') || (key.startsWith('sk-') && !key.startsWith('sk-ant-'))) {
+      return { valid: false, error: 'Detected OpenAI key! This field only accepts Anthropic Claude keys (starting with sk-ant-).' };
+    }
+    if (!key.startsWith('sk-ant-')) {
+      return { valid: false, error: 'Invalid Anthropic Claude API key format. Keys must start with "sk-ant-".' };
+    }
+  } else if (provider === 'groq') {
+    if (key.startsWith('sk-ant-')) {
+      return { valid: false, error: 'Detected Anthropic Claude key! This field only accepts Groq API keys (starting with gsk_).' };
+    }
+    if (key.startsWith('AIzaSy') || key.startsWith('AQ.')) {
+      return { valid: false, error: 'Detected Google Gemini key! This field only accepts Groq API keys (starting with gsk_).' };
+    }
+    if (key.startsWith('sk-proj-') || key.startsWith('sk-')) {
+      return { valid: false, error: 'Detected OpenAI key! This field only accepts Groq API keys (starting with gsk_).' };
+    }
+    if (!key.startsWith('gsk_')) {
+      return { valid: false, error: 'Invalid Groq API key format. Keys must start with "gsk_".' };
+    }
+    if (key.length < 20) {
+      return { valid: false, error: 'Groq API key is too short. Please verify your complete key.' };
+    }
+  }
+
+  return { valid: true };
 }

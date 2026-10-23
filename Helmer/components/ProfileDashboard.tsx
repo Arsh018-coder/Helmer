@@ -6,10 +6,12 @@ import {
   AI_PROVIDERS,
   type AiProvider,
   type ProfileSettings,
+  type CustomApiKey,
   getProfileSettings,
   saveProfileSettings,
   clearApiKey,
   maskApiKey,
+  validateApiKeyFormat,
 } from '@/lib/profileSettings';
 
 interface ProfileDashboardProps {
@@ -29,9 +31,17 @@ export default function ProfileDashboard({
 }: ProfileDashboardProps) {
   const [settings, setSettings] = useState<ProfileSettings>(getProfileSettings());
   const [showKeys, setShowKeys] = useState<{ [key in AiProvider]?: boolean }>({});
+  const [keyErrors, setKeyErrors] = useState<{ [key in AiProvider]?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' } | null>(null);
   const [copiedSession, setCopiedSession] = useState(false);
+
+  // Custom other API keys state (+ icon)
+  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  const [customKeyName, setCustomKeyName] = useState('');
+  const [customKeyProvider, setCustomKeyProvider] = useState('');
+  const [customKeyValue, setCustomKeyValue] = useState('');
+  const [showCustomKeys, setShowCustomKeys] = useState<{ [id: string]: boolean }>({});
 
   useEffect(() => {
     setSettings(getProfileSettings());
@@ -41,7 +51,7 @@ export default function ProfileDashboard({
     setToast({ show: true, message, type });
     setTimeout(() => {
       setToast(null);
-    }, 4000);
+    }, 4500);
   };
 
   const handleProviderChange = (provider: AiProvider) => {
@@ -66,6 +76,14 @@ export default function ProfileDashboard({
       openai: 'openaiApiKey',
       groq: 'groqApiKey',
     };
+
+    // Validate format immediately on input
+    const validation = validateApiKeyFormat(provider, value);
+    setKeyErrors((prev) => ({
+      ...prev,
+      [provider]: validation.valid ? undefined : validation.error,
+    }));
+
     setSettings((prev) => ({
       ...prev,
       [keyFieldMap[provider]]: value,
@@ -73,6 +91,33 @@ export default function ProfileDashboard({
   };
 
   const handleSaveKeys = async () => {
+    // Validate all keys before saving
+    const providers: AiProvider[] = ['gemini', 'openai', 'claude', 'groq'];
+    const keyFieldMap: Record<AiProvider, keyof ProfileSettings> = {
+      claude: 'anthropicApiKey',
+      gemini: 'geminiApiKey',
+      openai: 'openaiApiKey',
+      groq: 'groqApiKey',
+    };
+
+    let hasValidationError = false;
+    const newErrors: { [key in AiProvider]?: string } = {};
+
+    for (const p of providers) {
+      const val = (settings[keyFieldMap[p]] as string) || '';
+      const res = validateApiKeyFormat(p, val);
+      if (!res.valid) {
+        hasValidationError = true;
+        newErrors[p] = res.error;
+      }
+    }
+
+    if (hasValidationError) {
+      setKeyErrors(newErrors);
+      showNotification('Cannot save: Invalid API key format detected. Please correct the highlighted errors.', 'error');
+      return;
+    }
+
     setIsSaving(true);
     try {
       // 1. Client-side persistence
@@ -83,6 +128,7 @@ export default function ProfileDashboard({
         geminiApiKey: settings.geminiApiKey,
         openaiApiKey: settings.openaiApiKey,
         groqApiKey: settings.groqApiKey,
+        customKeys: settings.customKeys || [],
       });
       setSettings(saved);
 
@@ -104,12 +150,41 @@ export default function ProfileDashboard({
         // Fallback to client-side enclave is handled gracefully
       }
 
-      showNotification('AI API keys securely encrypted and synchronized with execution engine.', 'success');
+      showNotification('AI API keys validated, securely encrypted, and synchronized with execution engine.', 'success');
     } catch {
       showNotification('Failed to save API keys. Please verify permissions.', 'error');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAddCustomKey = () => {
+    if (!customKeyName.trim() || !customKeyValue.trim()) {
+      showNotification('Please enter a name and API key.', 'error');
+      return;
+    }
+    const newCustomKey: CustomApiKey = {
+      id: 'ck_' + Math.random().toString(36).substring(2, 9),
+      name: customKeyName.trim(),
+      providerOrModel: customKeyProvider.trim() || 'Custom LLM / Tool',
+      apiKey: customKeyValue.trim(),
+      createdAt: new Date().toLocaleDateString(),
+    };
+    const updatedCustomKeys = [...(settings.customKeys || []), newCustomKey];
+    const saved = saveProfileSettings({ customKeys: updatedCustomKeys });
+    setSettings(saved);
+    setCustomKeyName('');
+    setCustomKeyProvider('');
+    setCustomKeyValue('');
+    setShowAddCustomModal(false);
+    showNotification(`Added custom API key: ${newCustomKey.name}`, 'success');
+  };
+
+  const handleDeleteCustomKey = (id: string) => {
+    const updatedCustomKeys = (settings.customKeys || []).filter((k) => k.id !== id);
+    const saved = saveProfileSettings({ customKeys: updatedCustomKeys });
+    setSettings(saved);
+    showNotification('Custom API key removed.', 'success');
   };
 
   const handleClearKey = (provider: AiProvider) => {
@@ -573,6 +648,8 @@ export default function ProfileDashboard({
                         fontSize: '12.5px',
                         padding: '10px 14px',
                         letterSpacing: isRevealed ? 'normal' : '0.1em',
+                        borderColor: keyErrors[prov.id] ? 'var(--err)' : undefined,
+                        background: keyErrors[prov.id] ? 'rgba(239, 68, 68, 0.04)' : undefined,
                       }}
                     />
                   </div>
@@ -598,10 +675,221 @@ export default function ProfileDashboard({
                     </button>
                   )}
                 </div>
+
+                {keyErrors[prov.id] && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      marginTop: '8px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      color: 'var(--err)',
+                      fontSize: '11.5px',
+                      fontFamily: 'var(--mono)',
+                    }}
+                  >
+                    <span>⚠️</span>
+                    <span>{keyErrors[prov.id]}</span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
+
+        {/* Custom / Other API Keys Section */}
+        <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--stroke-subtle)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text)' }}>
+                Additional / Other Provider API Keys
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-3)' }}>
+                Register API keys for custom models, self-hosted LLMs, or specialized external tools.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAddCustomModal(true)}
+              className="btn-pill btn-pill-secondary btn-pill-sm"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600, borderColor: 'var(--accent)', color: 'var(--accent)' }}
+            >
+              <span style={{ fontSize: '15px', lineHeight: 1, fontWeight: 700 }}>+</span>
+              <span>Add Other API Key</span>
+            </button>
+          </div>
+
+          {/* List of custom keys */}
+          {(!settings.customKeys || settings.customKeys.length === 0) ? (
+            <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.4)', border: '1px dashed var(--stroke-border)', textAlign: 'center', color: 'var(--text-3)', fontSize: '12px' }}>
+              No additional API keys configured. Click <strong>+ Add Other API Key</strong> to register other services (e.g. Mistral, DeepSeek, Together AI).
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {settings.customKeys.map((ck) => {
+                const isRevealed = Boolean(showCustomKeys[ck.id]);
+                return (
+                  <div
+                    key={ck.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.75)',
+                      border: '1px solid var(--stroke-border)',
+                      flexWrap: 'wrap',
+                      gap: '10px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text)' }}>{ck.name}</span>
+                        <span style={{ fontSize: '10.5px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(11, 31, 58, 0.08)', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
+                          {ck.providerOrModel}
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-3)', marginTop: '2px' }}>
+                        Key: {isRevealed ? ck.apiKey : maskApiKey(ck.apiKey)} · Added {ck.createdAt}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomKeys((prev) => ({ ...prev, [ck.id]: !prev[ck.id] }))}
+                        className="btn-pill btn-pill-secondary btn-pill-sm"
+                        style={{ fontSize: '11px' }}
+                      >
+                        {isRevealed ? 'Hide' : 'Show'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomKey(ck.id)}
+                        className="btn-pill btn-pill-secondary btn-pill-sm"
+                        style={{ fontSize: '11px', color: 'var(--err)', borderColor: 'var(--err-border)' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Modal for adding custom key */}
+        {showAddCustomModal && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(11, 31, 58, 0.45)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+              padding: '20px',
+            }}
+          >
+            <div
+              className="glass-panel"
+              style={{
+                width: '100%',
+                maxWidth: '460px',
+                padding: '24px',
+                borderRadius: '16px',
+                background: '#FFFFFF',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
+                  Add Other API Key
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomModal(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-3)' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-2)', display: 'block', marginBottom: '4px' }}>
+                    Key Name / Identifier:
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. DeepSeek Production Key, Mistral Small"
+                    value={customKeyName}
+                    onChange={(e) => setCustomKeyName(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-2)', display: 'block', marginBottom: '4px' }}>
+                    Provider or Model Tag (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. DeepSeek-R1, Mistral, Together AI"
+                    value={customKeyProvider}
+                    onChange={(e) => setCustomKeyProvider(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '12px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-2)', display: 'block', marginBottom: '4px' }}>
+                    API Key:
+                  </label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="Paste your API key"
+                    value={customKeyValue}
+                    onChange={(e) => setCustomKeyValue(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '12px', fontFamily: 'var(--mono)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-secondary btn-pill-sm"
+                  onClick={() => setShowAddCustomModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-pill btn-pill-primary btn-pill-sm"
+                  onClick={handleAddCustomKey}
+                >
+                  Save Other Key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Save Keys Action Bar */}
         <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid var(--stroke-subtle)', paddingTop: '20px' }}>

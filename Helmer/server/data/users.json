@@ -9,7 +9,8 @@
     "salt": "c0982737f9d6184b028d77e6c6a29b3231e92fe9d001c4f8de49067869b630ab",
     "passwordHash": "8534cebf570cc2f4bc743d40f98d905675baf1ad5f5940cbb0b035b325b25d4d5320c71de9ebcdb279a1cfab3f4e9adc941544090c497e183499405675fa84da",
     "createdAt": "2026-10-23T10:59:32.960Z",
-    "updatedAt": "2026-10-23T10:59:32.960Z"
+    "updatedAt": "2026-10-23T10:59:32.960Z",
+    "lastLoginAt": "2026-10-23T22:03:43.782Z"
   },
   {
     "id": "usr_gi_df6c33355b72",
