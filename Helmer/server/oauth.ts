@@ -33,7 +33,7 @@ export function getGoogleAuthUrl(state: string, redirectUri: string): string | n
     client_id: clientId,
     redirect_uri: effectiveCallback,
     response_type: 'code',
-    scope: 'openid email profile',
+    scope: 'openid email profile https://www.googleapis.com/auth/userinfo.profile',
     state,
     access_type: 'offline',
     prompt: 'select_account',
@@ -98,10 +98,37 @@ export async function exchangeGoogleCode(code: string, redirectUri: string): Pro
     throw new Error('Failed to retrieve user profile from Google.');
   }
 
+  let avatar = userData.picture;
+
+  // Try fetching high-resolution photo from Google People API
+  try {
+    const peopleRes = await fetch('https://people.googleapis.com/v1/people/me?personFields=photos', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    if (peopleRes.ok) {
+      const peopleData = await peopleRes.json();
+      const photos = peopleData.photos || [];
+      const primaryPhoto = photos.find((p: any) => !p.default && p.url) || photos[0];
+      if (primaryPhoto?.url) {
+        avatar = primaryPhoto.url;
+      }
+    }
+  } catch {
+    // Fall back to standard userData.picture
+  }
+
+  // Request crisp high-definition 256px photo from Google CDN
+  if (avatar && avatar.includes('googleusercontent.com')) {
+    avatar = avatar.replace(/=s\d+(-c)?$/, '=s256-c');
+    if (!avatar.includes('=s')) {
+      avatar = `${avatar}=s256-c`;
+    }
+  }
+
   return {
     email: userData.email,
     name: userData.name || userData.email.split('@')[0],
-    avatar: userData.picture,
+    avatar,
     provider: 'google',
     rawId: userData.sub,
   };
