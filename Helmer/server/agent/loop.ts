@@ -208,26 +208,51 @@ function adaptCriteriaForInstruction(
 ): ContractInput['criteria'] {
   if (!instruction) return criteria;
 
-  // Patterns: "reduce length to 100 words", "100 words", "around 100 words", "under 150 words"
+  // Patterns: "reduce length to 100 words", "100 words", "around 100 words", "under 150 words", "10 words"
   const wordMatch = instruction.match(
     /(?:reduce|cut|shrink|limit|to|around|about|under|approx(?:imately)?|between)?\s*(\d+)(?:\s*(?:to|-)\s*(\d+))?\s*words?/i,
   );
   if (wordMatch) {
     const num1 = parseInt(wordMatch[1], 10);
     const num2 = wordMatch[2] ? parseInt(wordMatch[2], 10) : null;
-    const min = num2 ? Math.min(num1, num2) : Math.max(20, num1 - 40);
-    const max = num2 ? Math.max(num1, num2) : num1 + 40;
+    let min: number;
+    let max: number;
+    if (num2) {
+      min = Math.min(num1, num2);
+      max = Math.max(num1, num2);
+    } else if (num1 <= 15) {
+      min = Math.max(1, num1 - 3);
+      max = num1 + 4;
+    } else if (num1 <= 50) {
+      min = Math.max(5, Math.round(num1 * 0.7));
+      max = Math.round(num1 * 1.3);
+    } else {
+      min = Math.max(20, Math.round(num1 * 0.75));
+      max = Math.round(num1 * 1.25);
+    }
 
-    return criteria.map((c) => {
+    const hasWordRange = criteria.some((c) => c.check === CONTRACT_CHECK.wordRange);
+    const mapped = criteria.map((c) => {
       if (c.check === CONTRACT_CHECK.wordRange) {
         return {
           ...c,
           arg: [min, max],
-          text: `Deliverable formatted as briefing.md with ${min} to ${max} words (adapted for operator steering instruction).`,
+          text: `Deliverable formatted as briefing.md with ${min} to ${max} words (adapted for operator steering instruction: "${instruction}").`,
         };
       }
       return c;
     });
+
+    if (!hasWordRange) {
+      mapped.push({
+        id: 'crit-operator-word-range',
+        text: `Deliverable must contain between ${min} and ${max} words (steered by operator: "${instruction}").`,
+        check: CONTRACT_CHECK.wordRange,
+        arg: [min, max],
+      });
+    }
+
+    return mapped;
   }
   return criteria;
 }
@@ -338,6 +363,10 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     const thought = shortenThought(action.thought);
     await emit(EVENT_TYPE.reasoning, { step_no: stepNo, thought });
 
+    // Check commands immediately before running tool so user pause/stop takes effect sub-second
+    await handleCommands(ctx, state);
+    if (state.stopRequested) break;
+
     if (action.tool === 'finish') break;
     stepsTaken = stepNo;
 
@@ -346,6 +375,10 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     const outcome = await executeAction(ctx, stepNo, { ...action, tool: action.tool });
     failures.push(...outcome.failures);
     recoveries.push(...outcome.recoveries);
+
+    // Check commands immediately after running tool
+    await handleCommands(ctx, state);
+    if (state.stopRequested) break;
 
     if (!outcome.result) {
       // Ladder exhausted: the tool is out of play for the rest of the run (rung 3 already logged).
@@ -367,6 +400,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     }
   }
 
+  await handleCommands(ctx, state);
   if (state.stopRequested) {
     await finishRun(db, runId, { status: RUN_STATUS.stopped, verdict: null });
     return;
@@ -379,7 +413,8 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     criteria: adaptCriteriaForInstruction(contract.criteria, state.instruction),
   };
 
-  if (!deliverable.name || !deliverable.content) {
+  // Re-compose if empty OR if operator injected an instruction mid-flight
+  if (!deliverable.name || !deliverable.content || Boolean(state.instruction)) {
     try {
       deliverable = await composeDeliverable({
         llm,

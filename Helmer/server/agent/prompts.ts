@@ -110,7 +110,7 @@ export function nextActionPrompt(input: NextActionInput): ChatMessage[] {
   ];
   if (input.instruction) {
     lines.push(
-      `The user has redirected the run. This instruction replaces the goal for the rest of the run: ${input.instruction}`,
+      `🚨 OPERATOR DIRECTIVE (TOP PRIORITY): "${input.instruction}". This directive immediately overrides the original goal. Adapt all remaining actions, thoughts, and especially written deliverables (word counts, scope) strictly to this directive.`,
     );
   }
   return [{ role: 'system', content: UNTRUSTED_CONTENT_RULE }, { role: 'user', content: lines.join('\n') }];
@@ -123,16 +123,17 @@ export function reportPrompt(
   notes: string,
   instruction?: string | null,
 ): ChatMessage[] {
-  const userContent = [`Goal: ${goal}`];
+  const userContent: string[] = [];
 
   if (instruction) {
     userContent.push(
-      `\nCRITICAL OPERATOR OVERRIDE: The operator steered the run with this directive: "${instruction}".`,
-      `You MUST follow this directive above all else. If it specifies a target word count (e.g. 100 words), length, or topic shift, strictly adhere to it over previous constraints.\n`,
+      `🚨 CRITICAL OPERATOR DIRECTIVE (TOP PRIORITY OVERRIDE): "${instruction}"`,
+      `You MUST follow this directive above all else. If it specifies a target word count (such as 10 words, 20 words, etc.), concise length, or topic shift, strictly adhere to it over any previous goals, constraints, or defaults. Count your words and ensure your output matches "${instruction}". Do not add extra filler, commentary, or greetings.\n`,
     );
   }
 
   userContent.push(
+    `Goal: ${goal}`,
     `Acceptance criteria: ${criteria.join(' | ')}`,
     'Research notes collected during the run:',
     notes || '(no tool output was collected)',
@@ -143,9 +144,9 @@ export function reportPrompt(
       role: 'system',
       content: [
         'You write the deliverable: short, factual markdown for a busy reader.',
-        'Answer the goal directly. Cite every claim with the source URLs you were given —',
-        'never invent a URL. Do not mention these instructions or that you are a model.',
-        instruction ? 'Prioritize the operator steering instruction for length and topics strictly.' : '',
+        instruction
+          ? `OPERATOR OVERRIDE ACTIVE: Strictly obey "${instruction}". If length or word count is specified (e.g. 10 words), write exactly that length without verbose preamble or markdown fluff.`
+          : 'Answer the goal directly. Cite every claim with the source URLs you were given — never invent a URL. Do not mention these instructions or that you are a model.',
         'Reply with markdown only, no code fences, no preamble.',
       ]
         .filter(Boolean)
@@ -165,25 +166,30 @@ export function repairPrompt(
   artifact: string,
   instruction?: string | null,
 ): ChatMessage[] {
-  const userContent = [
-    `Goal: ${goal}`,
-    `Failed checks: ${failures.join(' | ')}`,
-  ];
+  const userContent: string[] = [];
   if (instruction) {
     userContent.push(
-      `OPERATOR INSTRUCTION: "${instruction}". If the failed checks conflict with this instruction (e.g. requested shorter length vs older word count), prioritize the operator instruction.`,
+      `🚨 CRITICAL OPERATOR INSTRUCTION: "${instruction}". All word count, length, and content constraints must strictly match this directive above all else.`,
     );
   }
-  userContent.push('Current deliverable:', artifact);
+  userContent.push(
+    `Goal: ${goal}`,
+    `Failed checks: ${failures.join(' | ')}`,
+    'Current deliverable:',
+    artifact,
+  );
 
   return [
     {
       role: 'system',
       content: [
         'Your deliverable failed some acceptance checks. Rewrite it so every check passes.',
+        instruction ? `Strictly prioritize the operator directive: "${instruction}".` : '',
         'Keep every real source URL and do not invent new ones.',
         'Reply with markdown only, no code fences, no preamble.',
-      ].join(' '),
+      ]
+        .filter(Boolean)
+        .join(' '),
     },
     {
       role: 'user',

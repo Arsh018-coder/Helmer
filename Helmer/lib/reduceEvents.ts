@@ -398,8 +398,80 @@ export function reduceEvents(
         finishedAt = event.ts;
         break;
 
+      case EVENT_TYPE.commandReceived: {
+        const kind = str(payload.kind);
+        if (kind === 'pause') {
+          derivedStatus = 'paused';
+          lastPausedAt = event.ts;
+        } else if (kind === 'resume') {
+          derivedStatus = 'running';
+          if (lastPausedAt !== null) {
+            totalPausedMs += Math.max(0, event.ts - lastPausedAt);
+            lastPausedAt = null;
+          }
+        } else if (kind === 'stop') {
+          derivedStatus = 'stopped';
+          finishedAt = event.ts;
+        }
+        break;
+      }
+
+      case EVENT_TYPE.redirected: {
+        const newInstruction = str(payload.new_instruction);
+        if (newInstruction) {
+          // Add a human redirect step to timeline so remote/phone redirects appear immediately
+          const redirectStepNo = 900 + steps.size;
+          const redirectStep = emptyAccumulator(redirectStepNo);
+          redirectStep.title = `🔄 Operator Directive (${str(payload.source, 'Remote')})`;
+          redirectStep.tool = 'human::redirect';
+          redirectStep.ms = 12;
+          redirectStep.reasoning = `Live operator redirected run: "${newInstruction}"`;
+          redirectStep.payload = {
+            instruction: newInstruction,
+            source: str(payload.source, 'remote'),
+            timestamp: new Date(event.ts).toISOString(),
+          };
+          steps.set(redirectStepNo, redirectStep);
+
+          // Adapt wordRange criteria dynamically
+          const wordMatch = newInstruction.match(
+            /(?:reduce|cut|shrink|limit|to|around|about|under|approx(?:imately)?|between)?\s*(\d+)(?:\s*(?:to|-)\s*(\d+))?\s*words?/i,
+          );
+          if (wordMatch) {
+            const num1 = parseInt(wordMatch[1], 10);
+            const num2 = wordMatch[2] ? parseInt(wordMatch[2], 10) : null;
+            let min: number;
+            let max: number;
+            if (num2) {
+              min = Math.min(num1, num2);
+              max = Math.max(num1, num2);
+            } else if (num1 <= 15) {
+              min = Math.max(1, num1 - 3);
+              max = num1 + 4;
+            } else if (num1 <= 50) {
+              min = Math.max(5, Math.round(num1 * 0.7));
+              max = Math.round(num1 * 1.3);
+            } else {
+              min = Math.max(20, Math.round(num1 * 0.75));
+              max = Math.round(num1 * 1.25);
+            }
+            criteria = criteria.map((c) => {
+              if (c.check === 'word_range') {
+                return {
+                  ...c,
+                  arg: [min, max],
+                  text: `Deliverable formatted with ${min} to ${max} words (steered: ${newInstruction}).`,
+                };
+              }
+              return c;
+            });
+          }
+        }
+        break;
+      }
+
       default:
-        // command_received / redirected / llm_retry describe the session, not the deliverable.
+        // llm_retry describes internal attempts, not deliverable
         break;
     }
   }

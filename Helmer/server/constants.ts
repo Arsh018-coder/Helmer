@@ -206,7 +206,7 @@ export const LLM_RESERVE_CALLS = 3;
 export const DEFAULT_DELIVERABLE_NAME = 'briefing.md';
 
 /** Cooldown between polls of the `commands` table while a run is paused. */
-export const COMMAND_POLL_MS = 500;
+export const COMMAND_POLL_MS = 200;
 
 /** Upper bound on events returned in one poll, so a long run cannot overflow a response. */
 export const EVENT_PAGE_LIMIT = 2_000;

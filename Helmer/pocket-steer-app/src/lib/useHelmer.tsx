@@ -271,7 +271,7 @@ export const HelmerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     pollBackend();
-    const interval = setInterval(pollBackend, 1500);
+    const interval = setInterval(pollBackend, 500);
     return () => {
       isMounted = false;
       clearInterval(interval);

@@ -26,7 +26,7 @@ import { reduceEvents } from './reduceEvents';
 import type { AgentRun } from './types';
 
 /** Cadence while the agent is working: fast enough to feel live, slow enough to be polite. */
-const POLL_ACTIVE_MS = 700;
+const POLL_ACTIVE_MS = 350;
 /** Cadence while the run is paused or finished, where nothing changes on its own. */
 const POLL_IDLE_MS = 3_000;
 
