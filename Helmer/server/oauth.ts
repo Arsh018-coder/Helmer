@@ -26,9 +26,12 @@ export function getGoogleAuthUrl(state: string, redirectUri: string): string | n
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
   if (!clientId) return null;
 
+  // Use configured GOOGLE_CALLBACK_URL if provided, else fallback to dynamic redirectUri
+  const effectiveCallback = process.env.GOOGLE_CALLBACK_URL?.trim() || redirectUri;
+
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: redirectUri,
+    redirect_uri: effectiveCallback,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -64,6 +67,9 @@ export async function exchangeGoogleCode(code: string, redirectUri: string): Pro
     throw new Error('Google OAuth credentials not configured on server.');
   }
 
+  // Use configured GOOGLE_CALLBACK_URL if provided, else fallback to dynamic redirectUri
+  const effectiveCallback = process.env.GOOGLE_CALLBACK_URL?.trim() || redirectUri;
+
   // 1. Exchange code for access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -72,7 +78,7 @@ export async function exchangeGoogleCode(code: string, redirectUri: string): Pro
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: redirectUri,
+      redirect_uri: effectiveCallback,
       grant_type: 'authorization_code',
     }),
   });

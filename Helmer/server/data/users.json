@@ -21,5 +21,27 @@
     "createdAt": "2026-10-23T11:29:01.898Z",
     "updatedAt": "2026-10-23T11:29:01.898Z",
     "lastLoginAt": "2026-10-23T11:29:01.898Z"
+  },
+  {
+    "id": "usr_go_06f8ccffbb24",
+    "name": "rohan",
+    "email": "rohanmaharaj339@gmail.com",
+    "avatar": "https://api.dicebear.com/7.x/initials/svg?seed=rohan&backgroundColor=0e7c86",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T12:40:34.854Z",
+    "updatedAt": "2026-10-23T12:40:34.854Z",
+    "lastLoginAt": "2026-10-23T12:40:34.854Z"
+  },
+  {
+    "id": "usr_gi_8680fb414dfe",
+    "name": "Neeraj",
+    "email": "neeraj611@users.noreply.github.com",
+    "avatar": "https://avatars.githubusercontent.com/u/198364497?v=4",
+    "provider": "github",
+    "role": "operator",
+    "createdAt": "2026-10-23T13:23:38.905Z",
+    "updatedAt": "2026-10-23T13:23:38.905Z",
+    "lastLoginAt": "2026-10-23T13:23:38.905Z"
   }
 ]
