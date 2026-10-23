@@ -1,6 +1,14 @@
 node_modules/
 .next/
 dist/
+<<<<<<< Updated upstream
 *.log
 .env
 .env.local
+=======
+build/
+.env
+.env.local
+.DS_Store
+*.log
+>>>>>>> Stashed changes

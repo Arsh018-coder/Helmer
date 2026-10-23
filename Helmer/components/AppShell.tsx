@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentRun } from '@/lib/types';
 import {
@@ -25,6 +25,7 @@ import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
 import AuthModal from '@/components/modals/AuthModal';
 import ProfileDashboard from '@/components/ProfileDashboard';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
 import { getProfileSettings } from '@/lib/profileSettings';
 
@@ -1428,6 +1429,7 @@ export default function AppShell({ route, id }: AppShellProps) {
             <div className="section-ambient-chroma section-chroma-teal" style={{ top: '10%', left: '10%' }} aria-hidden="true"></div>
             <div className="section-ambient-chroma section-chroma-blue" style={{ top: '40%', right: '10%' }} aria-hidden="true"></div>
             {/* Left: Composer Form */}
+            <ErrorBoundary label="Goal Composer">
             <div className="glass-panel composer-card" style={{ position: 'relative', zIndex: 2 }}>
               <div className="form-group">
                 <label className="form-label" htmlFor="goal-input">Operational Goal & Intent</label>
@@ -1564,8 +1566,10 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               </div>
             </div>
+            </ErrorBoundary>
 
             {/* Right: Live Engine Terminal & Recent Runs Switcher */}
+            <ErrorBoundary label="Console Terminal & Runs Panel">
             <div className="glass-panel console-terminal-card" style={{ position: 'relative', zIndex: 2 }}>
               <div className="console-tabs-header">
                 <div className="console-tab-pills">
@@ -1680,6 +1684,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               )}
             </div>
+            </ErrorBoundary>
           </div>
         </div>
       )}
@@ -1687,6 +1692,7 @@ export default function AppShell({ route, id }: AppShellProps) {
       {/* ===================== PAGE: LIVE RUN VIEW (/run/:id) ===================== */}
       {(currentPath === '/run' || currentPath.startsWith('/run/')) && (
         <div className="page-wrapper container">
+        <ErrorBoundary label="Live Run View">
           {/* Top Bar */}
           <div className="run-top-bar glass-panel">
             <div className="run-top-left">
@@ -2022,6 +2028,7 @@ export default function AppShell({ route, id }: AppShellProps) {
               </div>
             </div>
           </div>
+        </ErrorBoundary>
         </div>
       )}
 

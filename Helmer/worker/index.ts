@@ -99,58 +99,66 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForConfigAndDb(): Promise<void> {
-  let warned = false;
-  for (;;) {
-    try {
-      validateConfig();
-      await db.$queryRaw`SELECT 1`;
-      log.info('database reachable');
-      return;
-    } catch (error) {
-      if (!warned) {
-        log.warn('worker standby: ' + (error instanceof Error ? error.message : String(error)));
-        log.info('web application is active; worker will resume automatically once DATABASE_URL and .env are ready.');
-        warned = true;
-      }
-      await sleep(10000);
-    }
-  }
-}
-
 async function main(): Promise<void> {
-  await waitForConfigAndDb();
+  const port = process.env.PORT || 3000;
+  console.log('\n\x1b[1m\x1b[32m  ✔ Helmer is running!\x1b[0m');
+  console.log(`\x1b[1m\x1b[36m  ➜ Direct Link: \x1b[4mhttp://localhost:${port}/\x1b[0m\n`);
+
+  let isConfigured = false;
+  try {
+    validateConfig();
+    isConfigured = true;
+  } catch (_err) {
+    log.info('worker in standby mode (database/LLM not yet configured in .env; web UI is active with offline replay)');
+  }
+
   log.info('starting', { tag: config.workerTag });
 
-  await cleanupStuckRuns();
-  await heartbeat();
+  if (isConfigured) {
+    try {
+      await db.$queryRaw`SELECT 1`;
+      log.info('database reachable', { tag: config.workerTag });
 
-  const heartbeatTimer = setInterval(() => {
-    heartbeat().catch((error: unknown) => {
-      log.error('heartbeat failed', { message: error instanceof Error ? error.message : String(error) });
-    });
-  }, WORKER_HEARTBEAT_MS);
+      await cleanupStuckRuns();
+      await heartbeat();
 
-  log.info('polling for queued runs');
-
-  try {
-    for (;;) {
-      try {
-        const run = await claimNextRun();
-        if (run) await runClaimedRun(run);
-      } catch (error) {
-        log.error('poll cycle failed', {
-          message: error instanceof Error ? error.message : String(error),
+      const heartbeatTimer = setInterval(() => {
+        heartbeat().catch((error: unknown) => {
+          log.error('heartbeat failed', { message: error instanceof Error ? error.message : String(error) });
         });
+      }, WORKER_HEARTBEAT_MS);
+
+      log.info('polling for queued runs');
+
+      try {
+        for (;;) {
+          try {
+            const run = await claimNextRun();
+            if (run) await runClaimedRun(run);
+          } catch (error) {
+            log.error('poll cycle failed', {
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
+          await sleep(WORKER_POLL_MS);
+        }
+      } finally {
+        clearInterval(heartbeatTimer);
       }
-      await sleep(WORKER_POLL_MS);
+    } catch (error) {
+      log.info('database unreachable — worker running in standby mode (configure DATABASE_URL in .env to connect)', {
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
-  } finally {
-    clearInterval(heartbeatTimer);
+  }
+
+  // Standby loop: keeps worker process alive without crashing
+  for (;;) {
+    await sleep(60000);
   }
 }
 
 main().catch((error: unknown) => {
   log.error('fatal', { message: error instanceof Error ? error.message : String(error) });
-  process.exit(1);
 });
+

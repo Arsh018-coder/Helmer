@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { User } from '@/lib/auth';
 
 interface NavbarProps {
@@ -16,6 +16,9 @@ interface NavbarProps {
  * Top Navigation Bar — Apple reflective frosted glass design.
  * Provides instant tab navigation across Overview, Console, Live Run, History, and Mobile Steer,
  * with the authentication operator portal positioned at the rightmost position.
+ *
+ * Mobile: hamburger drawer (< 860px).
+ * Desktop: pill-shaped inline nav (≥ 860px).
  */
 export default function Navbar({
   currentPath,
@@ -28,7 +31,9 @@ export default function Navbar({
   onSignOut,
 }: NavbarProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const runPath = activeRunId ? `/run/${activeRunId}` : '/run';
@@ -51,6 +56,13 @@ export default function Navbar({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
       }
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target as Node) &&
+        !(event.target as HTMLElement).closest('.hamburger-btn')
+      ) {
+        setIsMobileMenuOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
@@ -58,6 +70,37 @@ export default function Navbar({
       if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     };
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [currentPath]);
+
+  // Lock body scroll when mobile menu open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileMenuOpen]);
+
+  const handleNavLink = useCallback(
+    (path: string, e?: React.MouseEvent) => {
+      setIsMobileMenuOpen(false);
+      navigateTo(path, e);
+    },
+    [navigateTo]
+  );
+
+  const navLinks = [
+    { path: '/', label: 'Overview', match: (p: string) => p === '/' },
+    { path: '/console', label: 'Console', match: (p: string) => p === '/console' },
+    { path: runPath, label: 'Live Run', match: (p: string) => p.startsWith('/run'), isLive: true },
+    { path: '/history', label: 'History', match: (p: string) => p === '/history' },
+    { path: steerPath, label: 'Mobile Steer', match: (p: string) => p.startsWith('/r') && !p.startsWith('/run') },
+  ];
 
   return (
     <header className="navbar">
@@ -70,45 +113,44 @@ export default function Navbar({
           <span>Helmer</span>
         </a>
 
+        {/* Desktop Navigation */}
         <nav className="nav-links" aria-label="Main Navigation">
-          <a href="/" className={`nav-link ${currentPath === '/' ? 'active' : ''}`} onClick={(e) => navigateTo('/', e)}>
-            Overview
-          </a>
-          <a href="/console" className={`nav-link ${currentPath === '/console' ? 'active' : ''}`} onClick={(e) => navigateTo('/console', e)}>
-            Console
-          </a>
-          <a href={runPath} className={`nav-link ${currentPath.startsWith('/run') ? 'active' : ''}`} onClick={(e) => navigateTo(runPath, e)}>
-            <span
-              className="badge-dot-green"
-              style={{
-                display: 'inline-block',
-                width: '6px',
-                height: '6px',
-                marginRight: '6px',
-                verticalAlign: 'middle',
-                animation: activeRunStatus === 'running' ? 'pulse 1.8s infinite' : 'none',
-              }}
-            ></span>
-            Live Run
-          </a>
-          <a href="/history" className={`nav-link ${currentPath === '/history' ? 'active' : ''}`} onClick={(e) => navigateTo('/history', e)}>
-            History
-          </a>
-          <a href={steerPath} className={`nav-link ${currentPath.startsWith('/r') ? 'active' : ''}`} onClick={(e) => navigateTo(steerPath, e)}>
-            Mobile Steer
-          </a>
+          {navLinks.map(({ path, label, match, isLive }) => (
+            <a
+              key={path}
+              href={path}
+              className={`nav-link ${match(currentPath) ? 'active' : ''}`}
+              onClick={(e) => navigateTo(path, e)}
+            >
+              {isLive && (
+                <span
+                  className="badge-dot-green"
+                  style={{
+                    display: 'inline-block',
+                    width: '6px',
+                    height: '6px',
+                    marginRight: '6px',
+                    verticalAlign: 'middle',
+                    animation: activeRunStatus === 'running' ? 'pulse 1.8s infinite' : 'none',
+                  }}
+                  aria-hidden="true"
+                />
+              )}
+              {label}
+            </a>
+          ))}
         </nav>
 
         <div className="nav-actions">
           <button
-            className="btn-pill btn-pill-secondary btn-pill-sm"
+            className="btn-pill btn-pill-secondary btn-pill-sm nav-qr-btn"
             onClick={onOpenQrModal}
             title="Steer from your phone via QR code"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
             </svg>
-            QR Steer
+            <span className="qr-btn-label">QR Steer</span>
           </button>
 
           {/* Rightmost Authentication Button / Profile Menu */}
@@ -213,7 +255,7 @@ export default function Navbar({
                     borderRadius: '50%',
                   }}
                   aria-hidden="true"
-                ></span>
+                />
               </button>
 
               {/* Profile Dropdown Menu */}
@@ -325,7 +367,7 @@ export default function Navbar({
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                           <circle cx="12" cy="7" r="4" />
                         </svg>
-                        <span>Profile & Keys</span>
+                        <span>Profile &amp; Keys</span>
                       </div>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)' }}>⌘P</span>
                     </a>
@@ -372,8 +414,81 @@ export default function Navbar({
               )}
             </div>
           )}
+
+          {/* Hamburger button — mobile only (< 860px) */}
+          <button
+            className="hamburger-btn"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-nav-drawer"
+          >
+            <span className={`hamburger-line ${isMobileMenuOpen ? 'open' : ''}`} aria-hidden="true" />
+            <span className={`hamburger-line ${isMobileMenuOpen ? 'open' : ''}`} aria-hidden="true" />
+            <span className={`hamburger-line ${isMobileMenuOpen ? 'open' : ''}`} aria-hidden="true" />
+          </button>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer */}
+      <div
+        id="mobile-nav-drawer"
+        ref={mobileMenuRef}
+        className={`mobile-nav-drawer ${isMobileMenuOpen ? 'mobile-nav-drawer--open' : ''}`}
+        aria-hidden={!isMobileMenuOpen}
+        role="dialog"
+        aria-label="Navigation Menu"
+      >
+        <nav aria-label="Mobile Navigation">
+          {navLinks.map(({ path, label, match, isLive }) => (
+            <a
+              key={path}
+              href={path}
+              className={`mobile-nav-link ${match(currentPath) ? 'active' : ''}`}
+              onClick={(e) => handleNavLink(path, e)}
+              tabIndex={isMobileMenuOpen ? 0 : -1}
+            >
+              {isLive && (
+                <span
+                  className="badge-dot-green"
+                  style={{
+                    display: 'inline-block',
+                    width: '7px',
+                    height: '7px',
+                    marginRight: '8px',
+                    verticalAlign: 'middle',
+                    animation: activeRunStatus === 'running' ? 'pulse 1.8s infinite' : 'none',
+                  }}
+                  aria-hidden="true"
+                />
+              )}
+              {label}
+            </a>
+          ))}
+
+          <div className="mobile-nav-divider" />
+
+          <button
+            className="mobile-nav-link mobile-nav-qr-btn"
+            onClick={() => { setIsMobileMenuOpen(false); onOpenQrModal(); }}
+            tabIndex={isMobileMenuOpen ? 0 : -1}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" style={{ marginRight: '8px' }}>
+              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+            </svg>
+            QR Steer
+          </button>
+        </nav>
+      </div>
+
+      {/* Backdrop overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="mobile-nav-backdrop"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
     </header>
   );
 }
