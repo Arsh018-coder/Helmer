@@ -47,11 +47,12 @@ export default function MascotRobot() {
       const deltaX = (e.clientX - centerX) / (window.innerWidth / 2);
       const deltaY = (e.clientY - centerY) / (window.innerHeight / 2);
 
-      targetX = Math.max(-12, Math.min(12, deltaX * 12));
-      targetY = Math.max(-10, Math.min(10, deltaY * 10));
+      targetX = Math.max(-14, Math.min(14, deltaX * 14));
+      targetY = Math.max(-12, Math.min(12, deltaY * 12));
 
-      targetEyeX = Math.max(-5.5, Math.min(5.5, deltaX * 5.5));
-      targetEyeY = Math.max(-2.5, Math.min(2.5, deltaY * 2.5));
+      // 50%+ increased gaze movement range (left/right & above/below)
+      targetEyeX = Math.max(-8.5, Math.min(8.5, deltaX * 8.5));
+      targetEyeY = Math.max(-4.2, Math.min(4.2, deltaY * 4.2));
     };
 
     const handleMouseLeave = () => {
@@ -62,13 +63,13 @@ export default function MascotRobot() {
     };
 
     const animateRobot = () => {
-      currentX += (targetX - currentX) * 0.12;
-      currentY += (targetY - currentY) * 0.12;
-      const tiltX = -currentY * 0.45;
-      const tiltY = currentX * 0.45;
+      currentX += (targetX - currentX) * 0.14;
+      currentY += (targetY - currentY) * 0.14;
+      const tiltX = -currentY * 0.48;
+      const tiltY = currentX * 0.48;
 
-      currentEyeX += (targetEyeX - currentEyeX) * 0.15;
-      currentEyeY += (targetEyeY - currentEyeY) * 0.15;
+      currentEyeX += (targetEyeX - currentEyeX) * 0.18;
+      currentEyeY += (targetEyeY - currentEyeY) * 0.18;
 
       if (mascotRef.current) {
         mascotRef.current.style.setProperty('--eye-offset-x', `${currentEyeX.toFixed(2)}px`);
@@ -101,13 +102,13 @@ export default function MascotRobot() {
 
   return (
     <div
-      className="mascot-container"
+      className={`mascot-container ${isRobotPinged ? 'pinged' : ''}`}
       ref={mascotRef}
       onClick={handleRobotClick}
       title="Click robot to send a real-time telemetry ping"
       style={{
         transform: `translate(${mascotOffset.x}px, ${mascotOffset.y}px) rotateX(${mascotOffset.tiltX}deg) rotateY(${mascotOffset.tiltY}deg)`,
-        transition: 'transform 0.15s ease-out',
+        transition: isRobotPinged ? 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)' : 'transform 0.15s ease-out',
         '--eye-offset-x': `${mascotOffset.eyeX.toFixed(2)}px`,
         '--eye-offset-y': `${mascotOffset.eyeY.toFixed(2)}px`,
       } as React.CSSProperties}

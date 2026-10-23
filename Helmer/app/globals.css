@@ -929,6 +929,17 @@ button:focus-visible, a:focus-visible {
   filter: brightness(1.22);
 }
 
+.mascot-container.pinged .mascot-img-wrap::before,
+.mascot-container.pinged .mascot-img-wrap::after {
+  box-shadow: 
+    0 0 12px #FFFFFF,
+    0 0 24px #38BDF8,
+    0 0 42px rgba(14, 124, 134, 1),
+    0 0 60px rgba(56, 189, 248, 0.95);
+  filter: brightness(1.35);
+  transform: translate(calc(-50% + var(--eye-offset-x, 0px)), calc(-50% + var(--eye-offset-y, 0px))) scale(1.2);
+}
+
 /* Robot Image: Masked with true transparent alpha */
 .mascot-img {
   width: 100%;
