@@ -43,5 +43,16 @@
     "createdAt": "2026-10-23T13:23:38.905Z",
     "updatedAt": "2026-10-23T13:23:38.905Z",
     "lastLoginAt": "2026-10-23T13:23:38.905Z"
+  },
+  {
+    "id": "usr_gi_ceea00f6b8f6",
+    "name": "Lucky",
+    "email": "lakshya6977@users.noreply.github.com",
+    "avatar": "https://avatars.githubusercontent.com/u/133528867?v=4",
+    "provider": "github",
+    "role": "operator",
+    "createdAt": "2026-10-23T16:29:45.111Z",
+    "updatedAt": "2026-10-23T16:29:45.111Z",
+    "lastLoginAt": "2026-10-23T16:29:45.111Z"
   }
 ]
