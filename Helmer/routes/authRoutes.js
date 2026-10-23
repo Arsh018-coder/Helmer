@@ -19,6 +19,28 @@ export function isLoggedIn(req, res, next) {
 }
 
 /**
+ * Logout handler: Log out active user, destroy session, and redirect to home
+ */
+export function logoutHandler(req, res, next) {
+  // Passport logout method
+  req.logout((err) => {
+    if (err) {
+      console.error('[Logout Error]:', err);
+      return next(err);
+    }
+
+    // Destroy express-session completely
+    req.session.destroy((destroyErr) => {
+      if (destroyErr) {
+        console.error('[Session Destroy Error]:', destroyErr);
+      }
+      res.clearCookie('connect.sid');
+      return res.redirect('/');
+    });
+  });
+}
+
+/**
  * @route   GET /auth/google
  * @desc    Initiate Google OAuth 2.0 authentication flow
  * @access  Public
@@ -43,8 +65,8 @@ router.get(
     failureMessage: true,
   }),
   (req, res) => {
-    // Successful authentication: redirect to protected dashboard / profile
-    res.redirect('/profile');
+    // Successful authentication: redirect back to home page
+    res.redirect('/');
   }
 );
 
@@ -53,24 +75,7 @@ router.get(
  * @desc    Log out active user, clear session, and redirect to home
  * @access  Private / Public
  */
-router.get('/logout', (req, res, next) => {
-  // Passport logout method
-  req.logout((err) => {
-    if (err) {
-      console.error('[Logout Error]:', err);
-      return next(err);
-    }
-
-    // Destroy express-session completely
-    req.session.destroy((destroyErr) => {
-      if (destroyErr) {
-        console.error('[Session Destroy Error]:', destroyErr);
-      }
-      res.clearCookie('connect.sid');
-      return res.redirect('/');
-    });
-  });
-});
+router.get('/logout', logoutHandler);
 
 /**
  * @route   GET /auth/current-user

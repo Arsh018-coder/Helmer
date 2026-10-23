@@ -54,5 +54,16 @@
     "createdAt": "2026-10-23T16:29:45.111Z",
     "updatedAt": "2026-10-23T16:29:45.111Z",
     "lastLoginAt": "2026-10-23T16:29:45.111Z"
+  },
+  {
+    "id": "usr_go_db2934c83253",
+    "name": "NEERAJ ATTRI",
+    "email": "neerajattri0611@gmail.com",
+    "avatar": "https://lh3.googleusercontent.com/a/ACg8ocIBCusbV-XWqDAEvdfU3jB7BkgQmxD5TaHHt0651ZSa4TzIow=s96-c",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T17:02:49.471Z",
+    "updatedAt": "2026-10-23T17:02:49.471Z",
+    "lastLoginAt": "2026-10-23T17:02:49.471Z"
   }
 ]

@@ -31,7 +31,16 @@ export function getCurrentUser(): User | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
+    if (raw) return JSON.parse(raw) as User;
+
+    // Fallback: check helmer_user cookie set by OAuth callback redirect
+    const match = document.cookie.match(/helmer_user=([^;]+)/);
+    if (match) {
+      const parsed = JSON.parse(decodeURIComponent(match[1].trim())) as User;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      return parsed;
+    }
+    return null;
   } catch {
     return null;
   }
