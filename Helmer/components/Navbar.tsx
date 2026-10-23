@@ -100,9 +100,6 @@ export default function Navbar({
         </nav>
 
         <div className="nav-actions">
-          <a href="/console" className="btn-pill btn-pill-primary btn-pill-sm" onClick={(e) => navigateTo('/console', e)}>
-            Open the console
-          </a>
           <button
             className="btn-pill btn-pill-secondary btn-pill-sm"
             onClick={onOpenQrModal}
