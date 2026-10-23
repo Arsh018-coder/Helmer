@@ -1,16 +1,5 @@
 /**
  * server/config.ts — validated environment configuration.
- *
- * This is the only module in the project that reads `process.env` (AGENTS.md section 19),
- * so a missing variable fails in one obvious place with a clear message instead of
- * surfacing as `undefined` deep inside the agent loop.
- *
- * The values are exposed through **lazy getters** on purpose. `next build` imports every
- * route handler module to read its `dynamic` export; if validation ran at import time the
- * build would fail on a machine that has no `.env` (CI, a teammate's first checkout).
- * Getters keep the "fail loudly on first use" guarantee while staying build-safe.
- *
- * Secrets must NEVER be prefixed with `NEXT_PUBLIC_` or they end up in the browser bundle.
  */
 
 /** Throw when a required variable is absent or empty. */

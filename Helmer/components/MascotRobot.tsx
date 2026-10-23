@@ -124,12 +124,6 @@ export default function MascotRobot() {
             src="/robo.png"
             alt="Helmer autonomous robot mascot on fluted cylindrical pedestal"
             className="mascot-img"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (!target.src.includes('Gemini_Generated_Image_a2yzlha2yzlha2yz_8f78cf09.png')) {
-                target.src = '/assets/aistudio/Gemini_Generated_Image_a2yzlha2yzlha2yz_8f78cf09.png';
-              }
-            }}
           />
         </div>
       </div>

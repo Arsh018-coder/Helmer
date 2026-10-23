@@ -5,9 +5,7 @@
   "scripts": {
     "dev": "npm --prefix Helmer run dev",
     "dev:next": "npm --prefix Helmer run dev:next",
-    "dev:vite": "npm --prefix Helmer run dev:vite",
     "build": "npm --prefix Helmer run build",
-    "build:vite": "npm --prefix Helmer run build:vite",
     "start": "npm --prefix Helmer run start",
     "lint": "npm --prefix Helmer run lint",
     "worker": "npm --prefix Helmer run worker",

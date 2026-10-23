@@ -1,26 +1,3 @@
-/**
- * worker/index.ts — the Helmer agent process.
- *
- * It runs outside Next.js on purpose: a run can last minutes and must be able to pause, which a
- * serverless function cannot do (AGENTS.md section 2). Its whole job is a small loop —
- *
- *   validate config → clean up → heartbeat → claim a queued run → run the agent → repeat
- *
- * — with two failure modes made visible:
- *  - a misconfigured `.env` fails immediately and lists every missing variable, because "the run
- *    stays queued forever" is the classic failure of a split architecture;
- *  - a run this worker left `running` after a crash is closed on startup with a `run_failed`
- *    event, so nothing hangs in the UI.
- *
- * Import rules: relative imports only — the `@/` alias is a Next.js feature and is unavailable
- * under `tsx`.
- *
- * `dotenv/config` is imported first because this process is not started by Next.js: nothing has
- * loaded `.env` for it, and without it `validateConfig()` would fail on a correctly configured
- * machine. Import order is preserved for side effects, so the environment is populated before any
- * other module reads it.
- */
-
 import 'dotenv/config';
 
 import {
@@ -38,16 +15,7 @@ import { runAgent } from '../server/agent/loop.js';
 
 const log = logger('worker');
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Startup: close runs this worker left running when it crashed
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * A run still marked `running` under our own tag means this worker died mid-run.
- *
- * Each one is closed with a real `run_failed` event on the same hash chain, so the UI shows an
- * honest ending rather than an eternal spinner. Runs belonging to other tags are left alone.
- */
+// Close runs left running by a previous worker crash
 async function cleanupStuckRuns(): Promise<void> {
   const stuck = await db.run.findMany({
     where: { status: RUN_STATUS.running, workerTag: config.workerTag },
@@ -66,10 +34,7 @@ async function cleanupStuckRuns(): Promise<void> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Heartbeat — how /api/health knows the worker is alive
-// ─────────────────────────────────────────────────────────────────────────────
-
+// Heartbeat for health reporting
 async function heartbeat(): Promise<void> {
   await db.worker.upsert({
     where: { tag: config.workerTag },
@@ -78,22 +43,13 @@ async function heartbeat(): Promise<void> {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Atomic claim
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface ClaimedRun {
   id: string;
   goal: string;
   budget: string;
 }
 
-/**
- * Claim the oldest queued run for this worker tag.
- *
- * `FOR UPDATE SKIP LOCKED` is what makes two workers safe: the row is locked for the duration of
- * the update, so the second worker skips it instead of claiming the same run (AGENTS.md section 8).
- */
+// Claim oldest queued run atomically
 async function claimNextRun(): Promise<ClaimedRun | null> {
   const rows = await db.$queryRaw<ClaimedRun[]>`
     UPDATE runs

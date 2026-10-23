@@ -1,16 +1,5 @@
 'use client';
 
-/**
- * AppShell — Helmer
- * This is a verbatim lift of the App() function body from src/App.tsx.
- * All shared state, effects, handlers, and rendering logic live here.
- * Each page route renders <AppShell route="/..." /> which drives the conditional
- * page content exactly as the original currentPath switch did.
- *
- * Visual freeze: no JSX structure, class names, inline styles, or animations changed.
- * Routing: navigateTo() now delegates to next/navigation useRouter().push().
- */
-
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AgentRun } from '@/lib/types';
@@ -36,19 +25,10 @@ import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
 
 interface AppShellProps {
-  /** The current route, provided by the Next.js page component. */
   route: string;
-  /** For dynamic segments like /run/[id] or /r/[id], the id param. */
   id?: string;
 }
 
-/**
- * Turn a run list row into the view model the list pages render.
- *
- * `GET /api/runs` returns summaries, not full runs (the events are what carry the steps), so the
- * list rows carry an honest zero for everything only the timeline knows: a row shows the goal, the
- * verdict and the timestamps, and the run view fills in the detail by polling the run's events.
- */
 function summaryToRun(summary: RunSummary): AgentRun {
   const created = Date.parse(summary.createdAt);
   const finished = summary.finishedAt ? Date.parse(summary.finishedAt) : Date.now();
@@ -358,108 +338,17 @@ export default function AppShell({ route, id }: AppShellProps) {
     };
   }, [isQrModalOpen, activeRunId]);
 
-  // Desktop Cursor 3D Parallax & Visor Eye Gaze-Follow for Mascot Robot
-  const mascotRef = useRef<HTMLDivElement>(null);
-  const [mascotOffset, setMascotOffset] = useState({
-    x: 0,
-    y: 0,
-    tiltX: 0,
-    tiltY: 0,
-    eyeX: 0,
-    eyeY: 0,
-  });
-  const [robotStatus, setRobotStatus] = useState<string>('TELEMETRY ACTIVE · 60 FPS');
-  const [isRobotPinged, setIsRobotPinged] = useState<boolean>(false);
-
-  // Navigation handler — replaces window.history.pushState with next/navigation
   const navigateTo = (path: string, e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     router.push(path);
-    // Smooth scroll to top preserved from original
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  // Desktop 3D Cursor Tilt & Eye Visor Gaze Follow for Immersive Robot
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const isDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!isDesktop || prefersReducedMotion) return;
-
-    let targetX = 0;
-    let targetY = 0;
-    let currentX = 0;
-    let currentY = 0;
-    let targetEyeX = 0;
-    let targetEyeY = 0;
-    let currentEyeX = 0;
-    let currentEyeY = 0;
-    let animId: number;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!mascotRef.current) return;
-      const rect = mascotRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-
-      const deltaX = (e.clientX - centerX) / (window.innerWidth / 2);
-      const deltaY = (e.clientY - centerY) / (window.innerHeight / 2);
-
-      // Max 12px shift and 4.5deg 3D tilt for the robot body
-      targetX = Math.max(-12, Math.min(12, deltaX * 12));
-      targetY = Math.max(-10, Math.min(10, deltaY * 10));
-
-      // Gaze Follow: offset eyes toward mouse coordinates inside the helmet visor
-      // Clamped to ±5.5px horizontal and ±2.5px vertical so pupils remain cleanly within visor
-      targetEyeX = Math.max(-5.5, Math.min(5.5, deltaX * 5.5));
-      targetEyeY = Math.max(-2.5, Math.min(2.5, deltaY * 2.5));
-    };
-
-    const handleMouseLeave = () => {
-      targetX = 0;
-      targetY = 0;
-      targetEyeX = 0;
-      targetEyeY = 0;
-    };
-
-    const animateRobot = () => {
-      currentX += (targetX - currentX) * 0.12;
-      currentY += (targetY - currentY) * 0.12;
-      const tiltX = -currentY * 0.45;
-      const tiltY = currentX * 0.45;
-
-      // Smooth gaze follow interpolation
-      currentEyeX += (targetEyeX - currentEyeX) * 0.15;
-      currentEyeY += (targetEyeY - currentEyeY) * 0.15;
-
-      // Update CSS variables directly on mascotRef for instant 60/120fps gaze follow
-      if (mascotRef.current) {
-        mascotRef.current.style.setProperty('--eye-offset-x', `${currentEyeX.toFixed(2)}px`);
-        mascotRef.current.style.setProperty('--eye-offset-y', `${currentEyeY.toFixed(2)}px`);
-      }
-
-      setMascotOffset({ x: currentX, y: currentY, tiltX, tiltY, eyeX: currentEyeX, eyeY: currentEyeY });
-      animId = requestAnimationFrame(animateRobot);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    window.addEventListener('mouseleave', handleMouseLeave);
-    animId = requestAnimationFrame(animateRobot);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseleave', handleMouseLeave);
-      cancelAnimationFrame(animId);
-    };
-  }, [currentPath]);
-
-  // Scroll observer for reveal animations
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.querySelectorAll('.reveal-section').forEach((el) => el.classList.add('is-revealed'));
       return;
     }
@@ -480,7 +369,6 @@ export default function AppShell({ route, id }: AppShellProps) {
     return () => observer.disconnect();
   }, [currentPath]);
 
-  // Replay looping interval — steps the replay run's timeline forward while "Play" is on.
   useEffect(() => {
     if (!isReplaying || replayRun.steps.length === 0) return;
     const intervalTime = replaySpeed === 1 ? 2600 : 1300;
@@ -490,24 +378,6 @@ export default function AppShell({ route, id }: AppShellProps) {
     return () => clearInterval(timer);
   }, [isReplaying, replaySpeed, replayRun.steps.length]);
 
-  // Robot interactive click handler
-  const handleRobotClick = () => {
-    setIsRobotPinged(true);
-    setRobotStatus('PING ACKNOWLEDGED · LATENCY 6ms');
-    setTimeout(() => {
-      setIsRobotPinged(false);
-      setRobotStatus('TELEMETRY ACTIVE · 60 FPS');
-    }, 2400);
-  };
-
-  /**
-   * Launch a run from the console: create it on the server, refresh the list and open its live
-   * view. The server enforces one active run per worker, so a 409 has a plain-language answer.
-   */
-  /**
-   * Launch a run from the console: create it on the server, refresh the list and open its live
-   * view. Falls back to immediate client-side live execution if server is offline or not configured.
-   */
   const handleLaunchRun = async () => {
     const goal = composerGoal.trim();
     if (!goal) return;

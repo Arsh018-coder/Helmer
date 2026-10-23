@@ -60,8 +60,6 @@ Helmer/
 │   ├── ARCHITECTURE.md   # System architecture & sequence diagrams
 │   ├── PROJECT_MAP.md    # This file!
 │   └── JUDGES_GUIDE.md   # Hackathon judge pitch and demo walkthrough
-│
-└── legacy/               # Preserved early prototypes (Vite SPA)
 ```
 
 ---

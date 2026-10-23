@@ -13,8 +13,6 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "dev:next": "next dev",
-    "dev:vite": "vite --config legacy/vite-prototype/vite.config.ts legacy/vite-prototype --port=3001",
-    "build:vite": "vite build --config legacy/vite-prototype/vite.config.ts legacy/vite-prototype",
     "clean": "rm -rf dist .next server.js"
   },
   "dependencies": {
@@ -34,12 +32,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
-    "@tailwindcss/vite": "^4.3.3",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.1.2",
     "esbuild": "^0.28.0",
@@ -47,7 +43,6 @@
     "prisma": "6.10.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^5.8.3",
-    "vite": "^8.3.0"
+    "typescript": "^5.8.3"
   }
 }
