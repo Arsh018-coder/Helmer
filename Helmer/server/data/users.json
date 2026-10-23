@@ -87,5 +87,16 @@
     "createdAt": "2026-10-23T19:06:28.597Z",
     "updatedAt": "2026-10-23T19:06:28.597Z",
     "lastLoginAt": "2026-10-23T19:06:28.597Z"
+  },
+  {
+    "id": "usr_go_91b1978f8dcf",
+    "name": "operator",
+    "email": "operator@helmer.ai",
+    "avatar": "https://api.dicebear.com/7.x/initials/svg?seed=operator&backgroundColor=0e7c86",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T20:13:45.381Z",
+    "updatedAt": "2026-10-23T20:13:45.381Z",
+    "lastLoginAt": "2026-10-23T20:13:45.381Z"
   }
 ]

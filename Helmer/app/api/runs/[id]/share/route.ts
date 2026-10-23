@@ -37,20 +37,55 @@ export const POST = handleRoute<RunContext>('share', async (request, context) =>
   
   if (envUrl) {
     baseOrigin = envUrl.replace(/\/+$/, '');
-  } else if (baseOrigin.includes('localhost') || baseOrigin.includes('127.0.0.1')) {
+  } else if (
+    baseOrigin.includes('localhost') ||
+    baseOrigin.includes('127.0.0.1') ||
+    baseOrigin.includes('0.0.0.0') ||
+    baseOrigin.includes('::')
+  ) {
     try {
       const os = await import('node:os');
       const interfaces = os.networkInterfaces();
       let lanIp: string | null = null;
-      for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name] || []) {
-          if (iface.family === 'IPv4' && !iface.internal && !name.toLowerCase().includes('vmnet') && !name.toLowerCase().includes('veth')) {
-            lanIp = iface.address;
-            break;
+
+      // 1. Prioritize physical Wi-Fi or Ethernet adapters
+      const preferredNames = ['wi-fi', 'wifi', 'wlan', 'ethernet', 'eth'];
+      for (const pref of preferredNames) {
+        for (const name of Object.keys(interfaces)) {
+          if (name.toLowerCase().includes(pref)) {
+            for (const iface of interfaces[name] || []) {
+              if (iface.family === 'IPv4' && !iface.internal) {
+                lanIp = iface.address;
+                break;
+              }
+            }
           }
+          if (lanIp) break;
         }
         if (lanIp) break;
       }
+
+      // 2. Fallback to any non-virtual IPv4 adapter
+      if (!lanIp) {
+        for (const name of Object.keys(interfaces)) {
+          if (
+            name.toLowerCase().includes('vmnet') ||
+            name.toLowerCase().includes('veth') ||
+            name.toLowerCase().includes('virtual') ||
+            name.toLowerCase().includes('pseudo')
+          ) {
+            continue;
+          }
+          for (const iface of interfaces[name] || []) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+              lanIp = iface.address;
+              break;
+            }
+          }
+          if (lanIp) break;
+        }
+      }
+
       if (lanIp) {
         const port = new URL(request.url).port || '3000';
         baseOrigin = `http://${lanIp}:${port}`;
