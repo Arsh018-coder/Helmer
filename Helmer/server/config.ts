@@ -34,24 +34,31 @@ const SEARCH_PROVIDERS: readonly SearchProvider[] = ['tavily', 'brave', 'wikiped
 
 export const config = {
   get databaseUrl(): string {
-    return requireEnv('DATABASE_URL');
+    return optionalEnv('DATABASE_URL', '');
   },
   get directUrl(): string {
-    return requireEnv('DIRECT_URL');
+    return optionalEnv('DIRECT_URL', '');
   },
 
   get accessCode(): string {
-    return requireEnv('ACCESS_CODE');
+    return optionalEnv('ACCESS_CODE', 'helmer-hackathon-2026');
   },
   get secretKey(): string {
-    return requireEnv('SECRET_KEY');
+    return optionalEnv('SECRET_KEY', 'helmer-dev-secret-key-32-chars-long');
   },
 
   get llmBaseUrl(): string {
-    return requireEnv('LLM_BASE_URL');
+    return optionalEnv('LLM_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/');
   },
   get llmApiKey(): string {
-    return requireEnv('LLM_API_KEY');
+    return optionalEnv(
+      'LLM_API_KEY',
+      process.env.GEMINI_API_KEY ||
+        process.env.OPENAI_API_KEY ||
+        process.env.ANTHROPIC_API_KEY ||
+        process.env.GROQ_API_KEY ||
+        ''
+    );
   },
   get llmModel(): string {
     return optionalEnv('LLM_MODEL', 'gemini-2.5-flash');
@@ -72,7 +79,7 @@ export const config = {
 
   /** Each developer sets this to their own name so only their worker claims their runs. */
   get workerTag(): string {
-    return requireEnv('WORKER_TAG');
+    return optionalEnv('WORKER_TAG', 'helmer-worker-alpha-01');
   },
 
   get maxSteps(): number {
