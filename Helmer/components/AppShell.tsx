@@ -668,6 +668,7 @@ export default function AppShell({ route, id }: AppShellProps) {
 
             <div className="container hero-content">
               <div className="protocol-badge">
+                <img src="/logo.png" alt="Helmer" className="hero-badge-logo-img" />
                 <span className="badge-dot-green" aria-hidden="true"></span>
                 <span className="protocol-text">Flight Protocol v4.2 · Verified Deterministic</span>
               </div>
@@ -1231,9 +1232,9 @@ export default function AppShell({ route, id }: AppShellProps) {
           <footer className="footer">
             <div className="container footer-inner">
               <div className="footer-brand">
-                <svg className="nav-logo-icon" style={{ width: '16px', height: '16px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-                </svg>
+                <div className="footer-logo-3d">
+                  <img src="/logo.png" alt="Helmer" className="footer-logo-img" />
+                </div>
                 <span>© 2026 Helmer · devX Team</span>
               </div>
               <div className="footer-links">
@@ -1250,7 +1251,12 @@ export default function AppShell({ route, id }: AppShellProps) {
       {currentPath === '/console' && (
         <div className="page-wrapper container">
           <div className="page-header">
-            <h1 className="page-title">Autonomous Goal Composer</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
+              <div className="console-header-logo-3d">
+                <img src="/logo.png" alt="Helmer Logo" className="console-header-logo-img" />
+              </div>
+              <h1 className="page-title" style={{ margin: 0 }}>Autonomous Goal Composer</h1>
+            </div>
             <p className="page-subtitle">
               Define high-level operational intent. Helmer creates an explicit contract with verifiable criteria, runs tools in sandboxes, and verifies results.
             </p>
@@ -1376,6 +1382,7 @@ export default function AppShell({ route, id }: AppShellProps) {
           <div className="run-top-bar glass-panel">
             <div className="run-top-left">
               <span className="protocol-badge" style={{ marginBottom: 0 }}>
+                <img src="/logo.png" alt="Helmer" className="hero-badge-logo-img" />
                 <span className="badge-dot-green" aria-hidden="true" style={{ animation: activeRun.status === 'running' ? 'pulse 1.8s infinite' : 'none' }}></span>
                 <span className="protocol-text">RUN ID: {activeRun.id}</span>
               </span>
@@ -1745,6 +1752,7 @@ export default function AppShell({ route, id }: AppShellProps) {
           <div className="steer-mobile-container">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="protocol-badge" style={{ marginBottom: 0 }}>
+                <img src="/logo.png" alt="Helmer" className="hero-badge-logo-img" />
                 <span className="badge-dot-green"></span>
                 <span className="protocol-text">POCKET CONTROLLER</span>
               </span>

@@ -393,6 +393,80 @@ button:focus-visible, a:focus-visible {
   color: var(--accent);
 }
 
+/* Helmer 3D Frosted Glass Logo System */
+.nav-logo-3d {
+  perspective: 700px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+}
+
+.nav-logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  transform: rotateY(-8deg) rotateX(6deg) translateZ(0);
+  filter: drop-shadow(0 4px 10px rgba(14, 124, 134, 0.32)) drop-shadow(0 2px 4px rgba(11, 31, 58, 0.12));
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, filter;
+}
+
+.nav-brand:hover .nav-logo-img {
+  transform: rotateY(-20deg) rotateX(12deg) translateY(-2px) scale(1.12);
+  filter: drop-shadow(0 8px 18px rgba(14, 124, 134, 0.48)) drop-shadow(0 3px 8px rgba(56, 189, 248, 0.38));
+}
+
+.hero-badge-logo-img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  vertical-align: middle;
+  transform: rotateY(-6deg) rotateX(4deg);
+  filter: drop-shadow(0 2px 6px rgba(14, 124, 134, 0.3));
+}
+
+.footer-logo-3d {
+  perspective: 500px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.footer-logo-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  vertical-align: middle;
+  transform: rotateY(-6deg) rotateX(4deg);
+  filter: drop-shadow(0 2px 6px rgba(14, 124, 134, 0.28));
+  transition: transform 0.3s ease;
+}
+
+.footer-brand:hover .footer-logo-img {
+  transform: rotateY(-18deg) rotateX(10deg) scale(1.1);
+}
+
+.console-header-logo-3d {
+  perspective: 700px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.console-header-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  transform: rotateY(-10deg) rotateX(6deg);
+  filter: drop-shadow(0 6px 14px rgba(14, 124, 134, 0.35));
+  transition: transform 0.3s var(--ease), filter 0.3s var(--ease);
+}
+
+.console-header-logo-img:hover {
+  transform: rotateY(-22deg) rotateX(12deg) translateY(-2px) scale(1.1);
+  filter: drop-shadow(0 10px 22px rgba(14, 124, 134, 0.5));
+}
+
 .nav-links {
   display: none;
   align-items: center;
