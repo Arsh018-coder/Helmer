@@ -1,6 +1,0 @@
-{
-  "name": "Helmer - Autonomous Agent Observability",
-  "description": "Helmer: Run autonomous tasks you can watch, steer, and verify with cryptographic telemetry, chaos resiliency, and deterministic replay.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
