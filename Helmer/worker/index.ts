@@ -143,20 +143,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main(): Promise<void> {
-  // Fail before touching the database if anything required is missing from the environment.
-  validateConfig();
-  log.info('starting', { tag: config.workerTag });
-
-  try {
-    await db.$queryRaw`SELECT 1`;
-    log.info('database reachable');
-  } catch (error) {
-    log.error('cannot reach the database — check DATABASE_URL', {
-      message: error instanceof Error ? error.message : String(error),
-    });
-    process.exit(1);
+async function waitForConfigAndDb(): Promise<void> {
+  let warned = false;
+  for (;;) {
+    try {
+      validateConfig();
+      await db.$queryRaw`SELECT 1`;
+      log.info('database reachable');
+      return;
+    } catch (error) {
+      if (!warned) {
+        log.warn('worker standby: ' + (error instanceof Error ? error.message : String(error)));
+        log.info('web application is active; worker will resume automatically once DATABASE_URL and .env are ready.');
+        warned = true;
+      }
+      await sleep(10000);
+    }
   }
+}
+
+async function main(): Promise<void> {
+  await waitForConfigAndDb();
+  log.info('starting', { tag: config.workerTag });
 
   await cleanupStuckRuns();
   await heartbeat();

@@ -9,6 +9,14 @@ replayable. See `AGENTS.md` for the full product definition and build plan.
 
 ---
 
+## 📚 Documentation & Guides
+
+- 🗺️ **[Project Map & Directory Guide](file:///c:/Users/ldhim/Documents/GitHub/Helmer/Helmer/docs/PROJECT_MAP.md)**: Find any file or feature instantly.
+- 🏗️ **[System Architecture](file:///c:/Users/ldhim/Documents/GitHub/Helmer/Helmer/docs/ARCHITECTURE.md)**: Full 3-tier system design & Merkle flight recorder breakdown.
+- 🏆 **[Hackathon Judges' Guide](file:///c:/Users/ldhim/Documents/GitHub/Helmer/Helmer/docs/JUDGES_GUIDE.md)**: Key innovations & 2-minute demo pitch.
+
+---
+
 ## Architecture
 
 ```

@@ -30,6 +30,10 @@ import {
   createCustomLiveRun,
   buildCryptographicEvents,
 } from '@/lib/initialRuns';
+import Navbar from '@/components/Navbar';
+import MascotRobot from '@/components/MascotRobot';
+import QrModal from '@/components/modals/QrModal';
+import RedirectModal from '@/components/modals/RedirectModal';
 
 interface AppShellProps {
   /** The current route, provided by the Next.js page component. */
@@ -767,52 +771,14 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   return (
     <div className="app-container">
-      {/* 1. MAIN NAVIGATION (APPLE REFLECTIVE FROSTED GLASS BAR) */}
-      <header className="navbar">
-        <div className="navbar-ambient-glow" aria-hidden="true"></div>
-        <div className="container navbar-inner">
-          <a href="/" className="nav-brand" onClick={(e) => navigateTo('/', e)} aria-label="Helmer Home">
-            <svg className="nav-logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-            </svg>
-            <span>Helmer</span>
-          </a>
-
-          <nav className="nav-links" aria-label="Main Navigation">
-            <a href="/" className={`nav-link ${currentPath === '/' ? 'active' : ''}`} onClick={(e) => navigateTo('/', e)}>
-              Overview
-            </a>
-            <a href="/console" className={`nav-link ${currentPath === '/console' ? 'active' : ''}`} onClick={(e) => navigateTo('/console', e)}>
-              Console
-            </a>
-            <a href={activeRun.id ? `/run/${activeRun.id}` : '/run'} className={`nav-link ${currentPath.startsWith('/run') ? 'active' : ''}`} onClick={(e) => navigateTo(activeRun.id ? `/run/${activeRun.id}` : '/run', e)}>
-              <span className="badge-dot-green" style={{ display: 'inline-block', width: '6px', height: '6px', marginRight: '6px', verticalAlign: 'middle', animation: activeRun.status === 'running' ? 'pulse 1.8s infinite' : 'none' }}></span>Live Run
-            </a>
-            <a href="/history" className={`nav-link ${currentPath === '/history' ? 'active' : ''}`} onClick={(e) => navigateTo('/history', e)}>
-              History
-            </a>
-            <a href={activeRun.id ? `/r/${activeRun.id}` : '/r'} className={`nav-link ${currentPath.startsWith('/r') ? 'active' : ''}`} onClick={(e) => navigateTo(activeRun.id ? `/r/${activeRun.id}` : '/r', e)}>
-              Mobile Steer
-            </a>
-          </nav>
-
-          <div className="nav-actions">
-            <a href="/console" className="btn-pill btn-pill-primary btn-pill-sm" onClick={(e) => navigateTo('/console', e)}>
-              Open the console
-            </a>
-            <button
-              className="btn-pill btn-pill-secondary btn-pill-sm"
-              onClick={() => setIsQrModalOpen(true)}
-              title="Steer from your phone via QR code"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-              </svg>
-              QR Steer
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* 1. MAIN NAVIGATION */}
+      <Navbar
+        currentPath={currentPath}
+        activeRunId={activeRun.id}
+        activeRunStatus={activeRun.status}
+        navigateTo={navigateTo}
+        onOpenQrModal={() => setIsQrModalOpen(true)}
+      />
 
       {/* ===================== PAGE: LANDING (/) ===================== */}
       {currentPath === '/' && (
@@ -885,48 +851,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
 
                 {/* Central Immersive Robot Display */}
-                <div
-                  className="mascot-container"
-                  ref={mascotRef}
-                  onClick={handleRobotClick}
-                  title="Click robot to send a real-time telemetry ping"
-                  style={{
-                    transform: `translate(${mascotOffset.x}px, ${mascotOffset.y}px) rotateX(${mascotOffset.tiltX}deg) rotateY(${mascotOffset.tiltY}deg)`,
-                    transition: 'transform 0.15s ease-out',
-                    '--eye-offset-x': `${mascotOffset.eyeX.toFixed(2)}px`,
-                    '--eye-offset-y': `${mascotOffset.eyeY.toFixed(2)}px`,
-                  } as React.CSSProperties}
-                >
-                  {/* Rotating Coordinate Ring & Radar Pulse */}
-                  <div className="robot-telemetry-halo" aria-hidden="true"></div>
-                  <div className="robot-radar-pulse" aria-hidden="true"></div>
-
-                  {/* Robot Floating Wrapper */}
-                  <div className="mascot-float-wrap">
-                    <div className="mascot-img-wrap">
-                      <img
-                        src="/robo.png"
-                        alt="Helmer autonomous robot mascot on fluted cylindrical pedestal"
-                        className="mascot-img"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          if (!target.src.includes('Gemini_Generated_Image_a2yzlha2yzlha2yz_8f78cf09.png')) {
-                            target.src = '/assets/aistudio/Gemini_Generated_Image_a2yzlha2yzlha2yz_8f78cf09.png';
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Interactive Status Beacon floating above */}
-                  <div className="robot-beacon-pill" style={{ transform: isRobotPinged ? 'scale(1.06)' : 'scale(1)' }}>
-                    <span className="beacon-dot" aria-hidden="true"></span>
-                    <span>{robotStatus}</span>
-                  </div>
-
-                  {/* Realistic Ground Pedestal Shadow */}
-                  <div className="mascot-pedestal-shadow" aria-hidden="true"></div>
-                </div>
+                <MascotRobot />
 
                 {/* Right Flanking Glass Card */}
                 <div className="hero-glass-card glass-panel hero-card-right">
@@ -2101,101 +2026,23 @@ export default function AppShell({ route, id }: AppShellProps) {
 
       {/* ===================== POPUPS & MODALS ===================== */}
 
-      {/* QR Code Popover Modal (For Phone Steering) */}
-      {isQrModalOpen && (
-        <div className="qr-modal-overlay" onClick={() => setIsQrModalOpen(false)}>
-          <div className="qr-modal-card glass-panel" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)' }}>
-                Steer From Your Phone
-              </h3>
-              <button
-                onClick={() => setIsQrModalOpen(false)}
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-2)' }}
-              >
-                ✕
-              </button>
-            </div>
+      {/* ===================== POPUPS & MODALS ===================== */}
+      <QrModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        qrDataUrl={qrDataUrl}
+        steerUrl={steerUrl}
+        activeRunId={activeRun.id}
+        navigateTo={navigateTo}
+      />
 
-            <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '18px', lineHeight: 1.5 }}>
-              Scan this code with your phone camera to pause, redirect, or trigger chaos faults in real-time.
-            </p>
-
-            {/* Real QR (feature F4): the signed steer link rendered by the `qrcode` package. */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '18px' }}>
-              {qrDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={qrDataUrl}
-                  alt="Scan to open the mobile steer view"
-                  width={180}
-                  height={180}
-                  style={{ background: '#FFFFFF', padding: '10px', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.4)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
-                />
-              ) : (
-                <div
-                  style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FFFFFF', borderRadius: '14px', color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: '11px', textAlign: 'center', padding: '10px' }}
-                >
-                  Enter the access code to mint a share link
-                </div>
-              )}
-            </div>
-
-            <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-3)', wordBreak: 'break-all', marginBottom: '14px' }}>
-              Target: {steerUrl || `/r/${activeRun.id}`}
-            </div>
-
-            <button
-              className="btn-pill btn-pill-primary"
-              style={{ width: '100%' }}
-              onClick={() => {
-                setIsQrModalOpen(false);
-                if (steerUrl) {
-                  window.open(steerUrl, '_blank', 'noopener,noreferrer');
-                } else {
-                  navigateTo(`/r/${activeRun.id}`);
-                }
-              }}
-            >
-              Open Mobile Steer Simulator
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Redirect Instruction Modal */}
-      {isRedirectModalOpen && (
-        <div className="qr-modal-overlay" onClick={() => setIsRedirectModalOpen(false)}>
-          <div className="qr-modal-card glass-panel" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)', marginBottom: '12px' }}>
-              Redirect Working Instruction
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '14px' }}>
-              Inject a mid-flight instruction. The agent loop blocks and incorporates this into the next decision step.
-            </p>
-
-            <textarea
-              className="form-textarea"
-              style={{ minHeight: '80px', marginBottom: '16px' }}
-              value={redirectInstruction}
-              onChange={(e) => setRedirectInstruction(e.target.value)}
-              placeholder="e.g. Also include secondary European bank ledgers..."
-            />
-
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button className="btn-pill btn-pill-secondary btn-pill-sm" onClick={() => setIsRedirectModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn-pill btn-pill-primary btn-pill-sm"
-                onClick={handleRedirect}
-              >
-                Send Redirect
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RedirectModal
+        isOpen={isRedirectModalOpen}
+        onClose={() => setIsRedirectModalOpen(false)}
+        redirectInstruction={redirectInstruction}
+        setRedirectInstruction={setRedirectInstruction}
+        onSubmit={handleRedirect}
+      />
     </div>
   );
 }

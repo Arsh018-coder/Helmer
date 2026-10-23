@@ -13,8 +13,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "dev:next": "next dev",
-    "dev:vite": "vite --port=3001 --host=0.0.0.0",
-    "build:vite": "vite build",
+    "dev:vite": "vite --config legacy/vite-prototype/vite.config.ts legacy/vite-prototype --port=3001",
+    "build:vite": "vite build --config legacy/vite-prototype/vite.config.ts legacy/vite-prototype",
     "clean": "rm -rf dist .next server.js"
   },
   "dependencies": {
