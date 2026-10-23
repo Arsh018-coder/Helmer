@@ -156,15 +156,18 @@ export default function Navbar({
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '4px 11px 4px 5px',
-                  borderRadius: 'var(--radius-pill)',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  padding: '3px',
+                  borderRadius: '50%',
                   border: '1px solid var(--stroke-border)',
                   background: 'rgba(255, 255, 255, 0.75)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
                   cursor: 'pointer',
                   boxShadow: '0 2px 6px rgba(11, 31, 58, 0.04)',
+                  width: '34px',
+                  height: '34px',
                 }}
               >
                 {user.avatar ? (
@@ -172,8 +175,8 @@ export default function Navbar({
                     src={user.avatar}
                     alt={user.name}
                     style={{
-                      width: '24px',
-                      height: '24px',
+                      width: '26px',
+                      height: '26px',
                       borderRadius: '50%',
                       objectFit: 'cover',
                       border: '1px solid var(--stroke-border)',
@@ -182,8 +185,8 @@ export default function Navbar({
                 ) : (
                   <div
                     style={{
-                      width: '24px',
-                      height: '24px',
+                      width: '26px',
+                      height: '26px',
                       borderRadius: '50%',
                       background: 'linear-gradient(135deg, var(--accent) 0%, #1e40af 100%)',
                       color: '#ffffff',
@@ -197,10 +200,20 @@ export default function Navbar({
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user.name}
-                </span>
-                <span className="badge-dot-green" style={{ width: '6px', height: '6px', margin: 0 }} aria-hidden="true"></span>
+                <span
+                  className="badge-dot-green"
+                  style={{
+                    position: 'absolute',
+                    bottom: '1px',
+                    right: '1px',
+                    width: '7px',
+                    height: '7px',
+                    margin: 0,
+                    border: '1.5px solid #ffffff',
+                    borderRadius: '50%',
+                  }}
+                  aria-hidden="true"
+                ></span>
               </button>
 
               {/* Profile Dropdown Menu */}
