@@ -156,6 +156,8 @@ export default function AppShell({ route, id }: AppShellProps) {
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   // The signed steer link the QR encodes, so the "open" button carries the phone's token too.
   const [steerUrl, setSteerUrl] = useState<string>('');
+  // Track redirect steps that were injected but not yet in backend events
+  const [redirectSteps, setRedirectSteps] = useState<Record<string, any>>({});
 
   // Authentication State
   const [user, setUser] = useState<User | null>(null);
@@ -229,9 +231,23 @@ export default function AppShell({ route, id }: AppShellProps) {
   // Live run data (B4 wiring): the run view, the phone view and the replay all render this one
   // `AgentRun`, folded from the run's events by the shared reducer.
   const live = useRun(activeRunId || null, { token: shareToken || null });
-  const activeRun = (live.run && live.events.length > 0)
+  const baseRun = (live.run && live.events.length > 0)
     ? live.run
     : (runs.find((r) => r.id === activeRunId) ?? runs[0] ?? EMPTY_RUN);
+
+  // Merge redirect steps from local state with live run data
+  const activeRun = (() => {
+    const redirectData = redirectSteps[activeRunId || ''];
+    if (!redirectData) return baseRun;
+
+    return {
+      ...baseRun,
+      steps: [...baseRun.steps, redirectData.step],
+      criteria: [...baseRun.criteria, redirectData.criterion],
+      plan: [...baseRun.plan, redirectData.planStep],
+    };
+  })();
+
   // The landing hero prefers the shipped recording so it plays offline; every other screen shows
   // the live run.
   const replayRun = goldenRun ?? activeRun;
@@ -272,6 +288,17 @@ export default function AppShell({ route, id }: AppShellProps) {
     const token = new URLSearchParams(window.location.search).get('t');
     if (token) setShareToken(token);
   }, []);
+
+  // Clear redirect steps when switching runs
+  useEffect(() => {
+    if (activeRunId) {
+      setRedirectSteps((prev) => {
+        const newState = { ...prev };
+        delete newState[activeRunId];
+        return newState;
+      });
+    }
+  }, [activeRunId]);
 
   // Load API credentials from localStorage on mount (Phase 1)
   useEffect(() => {
@@ -697,8 +724,9 @@ export default function AppShell({ route, id }: AppShellProps) {
     if (!activeRunId) return;
     const instruction = redirectInstruction.trim();
     if (!instruction) return;
+    const timestamp = Date.now();
     const newStep = {
-      step_no: activeRun.steps.length + 1,
+      step_no: timestamp, // Use timestamp for unique step_no
       title: 'Human Steering Directive Injected',
       tool: 'human::redirect',
       duration_ms: 12,
@@ -706,16 +734,30 @@ export default function AppShell({ route, id }: AppShellProps) {
       reasoning: `Human supervisor injected runtime directive: "${instruction}"`,
       payload: JSON.stringify({ instruction, source: sourceKind(), timestamp: new Date().toISOString() }, null, 2),
     };
-    setRuns((prev) =>
-      prev.map((r) =>
-        r.id === activeRunId
-          ? {
-              ...r,
-              steps: [...r.steps, newStep],
-            }
-          : r
-      )
-    );
+    const newCriterion = {
+      id: `redirect_${timestamp}`,
+      text: `Runtime directive: "${instruction.substring(0, 50)}${instruction.length > 50 ? '...' : ''}"`,
+      check: 'llm' as const,
+      status: 'pass' as const,
+      evidence: `Human supervisor injected directive at ${new Date().toISOString()}`,
+    };
+    const newPlanStep = {
+      step_no: timestamp, // Use timestamp for unique step_no
+      title: `🔄 Redirect: ${instruction.substring(0, 30)}${instruction.length > 30 ? '...' : ''}`,
+      tool: 'human::redirect',
+      status: 'completed' as const,
+    };
+
+    // Store redirect data in local state to merge with live run
+    setRedirectSteps((prev) => ({
+      ...prev,
+      [activeRunId]: {
+        step: newStep,
+        criterion: newCriterion,
+        planStep: newPlanStep,
+      },
+    }));
+
     setIsRedirectModalOpen(false);
     setRedirectInstruction('');
     try {
@@ -2035,7 +2077,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                   </div>
                 ) : (
                   activeRun.plan.map((p) => (
-                    <div key={p.step_no} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px', fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
+                    <div key={`${p.step_no}-${p.tool}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px', fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
                       <span>{p.step_no}. {p.title}</span>
                       <span style={{ color: p.status === 'completed' ? 'var(--ok)' : 'var(--warn)' }}>
                         {p.status === 'completed' ? '✓' : '...'}
@@ -2069,41 +2111,91 @@ export default function AppShell({ route, id }: AppShellProps) {
               )}
 
               {activeRun.steps.map((st) => (
-                <div
-                  key={st.step_no}
-                  className="step-card-collapsible"
-                  onClick={() => setExpandedStep(expandedStep === st.step_no ? null : st.step_no)}
-                >
-                  <div className="step-card-header">
-                    <div className="step-card-left-info">
-                      <span className="step-no-badge">STEP {st.step_no}</span>
-                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>{st.title}</span>
-                      {st.status === 'injected' && <span className="badge-injected">INJECTED</span>}
-                      {st.injection && <span className="badge-injected">SHIELD: IGNORED INJECTION</span>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="step-tool-chip">{st.tool}</span>
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>{st.duration_ms}ms</span>
+                st.tool === 'human::redirect' ? (
+                  <div
+                    key={`${st.step_no}-${st.tool}`}
+                    className="glass-panel"
+                    style={{
+                      marginBottom: '12px',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 113, 227, 0.08)',
+                      border: '1px solid rgba(0, 113, 227, 0.25)',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => setExpandedStep(expandedStep === st.step_no ? null : st.step_no)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{
+                        minWidth: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: 'rgba(0, 113, 227, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '14px',
+                      }}>
+                        💬
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--accent)', marginBottom: '6px' }}>
+                          Human Steering Directive
+                        </div>
+                        <div style={{
+                          background: 'rgba(255, 255, 255, 0.6)',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          color: 'var(--text)',
+                          marginBottom: '8px',
+                          fontFamily: 'var(--mono)',
+                        }}>
+                          {st.reasoning.replace(/Human supervisor injected runtime directive: "(.*)"/, '$1')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
+                          {st.payload}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="step-thought-text">
-                    "{st.reasoning}"
-                  </div>
-
-                  {st.injection && (
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: '10.5px', color: 'var(--warn)', marginTop: '6px' }}>
-                      Ignored an instruction found inside a web page · {st.injection.url}
-                      {st.injection.snippet ? ` · "${st.injection.snippet}"` : ''}
+                ) : (
+                  <div
+                    key={st.step_no}
+                    className="step-card-collapsible"
+                    onClick={() => setExpandedStep(expandedStep === st.step_no ? null : st.step_no)}
+                  >
+                    <div className="step-card-header">
+                      <div className="step-card-left-info">
+                        <span className="step-no-badge">STEP {st.step_no}</span>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>{st.title}</span>
+                        {st.status === 'injected' && <span className="badge-injected">INJECTED</span>}
+                        {st.injection && <span className="badge-injected">SHIELD: IGNORED INJECTION</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="step-tool-chip">{st.tool}</span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)' }}>{st.duration_ms}ms</span>
+                      </div>
                     </div>
-                  )}
 
-                  {expandedStep === st.step_no && (
-                    <pre className="step-expanded-payload">
-                      <code>{st.payload}</code>
-                    </pre>
-                  )}
-                </div>
+                    <div className="step-thought-text">
+                      "{st.reasoning}"
+                    </div>
+
+                    {st.injection && (
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: '10.5px', color: 'var(--warn)', marginTop: '6px' }}>
+                        Ignored an instruction found inside a web page · {st.injection.url}
+                        {st.injection.snippet ? ` · "${st.injection.snippet}"` : ''}
+                      </div>
+                    )}
+
+                    {expandedStep === st.step_no && (
+                      <pre className="step-expanded-payload">
+                        <code>{st.payload}</code>
+                      </pre>
+                    )}
+                  </div>
+                )
               ))}
 
               {/* Deliverable result state if completed */}

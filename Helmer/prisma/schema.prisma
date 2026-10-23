@@ -1,95 +1,71 @@
-// Helmer — Prisma 6 schema
-// Pinned to prisma@6 / @prisma/client@6 as required by AGENTS.md section 6.
-// The datasource block uses `url` + `directUrl` which is the Prisma 6 style.
-// Prisma 7 changed this API; do not upgrade without reading the migration guide.
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL") // pooled (pgBouncer port 6543), for the running app
-  directUrl = env("DIRECT_URL")   // session pooler (port 5432) or direct; used for migrations only
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Run: one autonomous task from goal → completed|failed|stopped
-// ─────────────────────────────────────────────────────────────
 model Run {
-  id         String    @id // 8 chars, secrets-style random
+  id         String    @id
   goal       String
-  status     String // queued|running|paused|completed|failed|stopped
-  contract   String? // JSON text — null until contract_created event
-  plan       String? // JSON text — null until plan_created event
-  resultPath String? // artifact name written by write_file
-  budget     String // JSON text: {maxSteps, maxSeconds, maxLlmCalls}
-  verdict    String? // verified|partially_verified|unverified
-  workerTag  String // which worker may claim this run (section 17 of AGENTS.md)
-  createdAt  DateTime  @default(now())
-  finishedAt DateTime?
-  events     Event[]
+  status     String
+  contract   String?
+  plan       String?
+  resultPath String?
+  budget     String
+  verdict    String?
+  workerTag  String
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  finishedAt DateTime? @db.Timestamptz(6)
   commands   Command[]
+  events     Event[]
 
   @@map("runs")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Event: immutable hash-chained log entry
-// payload is TEXT not JSONB: jsonb reorders keys and would break hashes.
-// ─────────────────────────────────────────────────────────────
 model Event {
   runId    String
   seq      Int
-  ts       Float  // ms since epoch stored as float (exact in a double for JS Date.now())
+  ts       Float
   type     String
-  payload  String // canonical JSON text produced by recorder.canonical()
+  payload  String
   prevHash String
   hash     String
-  run      Run    @relation(fields: [runId], references: [id])
+  run      Run    @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([runId, seq])
   @@map("events")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Command: user-issued control messages (pause/resume/stop/redirect/chaos)
-// The worker polls this table between steps.
-// ─────────────────────────────────────────────────────────────
 model Command {
   id         Int       @id @default(autoincrement())
   runId      String
-  kind       String // pause|resume|stop|redirect|chaos
-  payload    String    @default("{}") // JSON text — extra data (e.g. {instruction} for redirect)
-  createdAt  DateTime  @default(now())
-  consumedAt DateTime? // set when the worker reads it; null = unconsumed
-  run        Run       @relation(fields: [runId], references: [id])
+  kind       String
+  payload    String    @default("{}")
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+  consumedAt DateTime? @db.Timestamptz(6)
+  run        Run       @relation(fields: [runId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("commands")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Artifact: deliverable file produced by write_file tool
-// Stored in DB so web and worker can run on separate machines.
-// ─────────────────────────────────────────────────────────────
 model Artifact {
   runId     String
-  name      String // filename, e.g. "briefing.md" — validated: ^[A-Za-z0-9._-]+\.(md|txt)$
-  content   String // markdown or plain text, ≤ 50 KB
+  name      String
+  content   String
   bytes     Int
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@id([runId, name])
   @@map("artifacts")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Worker: heartbeat row — one row per WORKER_TAG.
-// health route checks seenAt < 15s ago to determine worker_alive.
-// ─────────────────────────────────────────────────────────────
 model Worker {
-  tag    String   @id // value of WORKER_TAG env var
-  seenAt DateTime
+  tag    String   @id
+  seenAt DateTime @db.Timestamptz(6)
 
   @@map("workers")
 }
