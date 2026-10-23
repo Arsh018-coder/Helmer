@@ -325,14 +325,28 @@ export default function AppShell({ route, id }: AppShellProps) {
   const loadRuns = useCallback(async () => {
     try {
       const summaries = await listRuns();
-      setRuns(summaries.map(summaryToRun));
+      if (summaries && summaries.length > 0) {
+        setRuns(summaries.map(summaryToRun));
+        // Auto-adopt live active run if on mobile or if current selection is default mock
+        setSelectedRunId((current) => {
+          if (!routeRunId || current === 'tx_883a90c1f') {
+            const activeOrRecent = summaries.find((s) => s.status === 'running' || s.status === 'paused') || summaries[0];
+            return activeOrRecent ? activeOrRecent.id : current;
+          }
+          return current;
+        });
+      }
     } catch {
       // A failed list (server down, wrong access code) leaves the last known list on screen.
     }
-  }, []);
+  }, [routeRunId]);
 
   useEffect(() => {
     void loadRuns();
+    const interval = setInterval(() => {
+      void loadRuns();
+    }, 2500);
+    return () => clearInterval(interval);
   }, [loadRuns]);
 
   // Health row (feature F2): a quiet line in the console, refreshed every 15 s.

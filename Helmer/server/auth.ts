@@ -101,6 +101,19 @@ export function verifyShareToken(token: string): string | null {
 export function isRunAuthorized(request: Request, runId: string): boolean {
   if (checkAccessCode(request)) return true;
 
+  // Check authenticated operator session cookie or header
+  try {
+    const cookieHeader = request.headers.get('cookie') || '';
+    const match = cookieHeader.match(/helmer_session=([^;]+)/);
+    const authHeader = request.headers.get('authorization') || '';
+    const tokenCandidate = match ? decodeURIComponent(match[1].trim()) : authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (tokenCandidate) {
+      // Dynamic import to avoid circular dependency
+      const { verifySessionToken } = require('./userStore');
+      if (verifySessionToken(tokenCandidate)) return true;
+    }
+  } catch {}
+
   const token = new URL(request.url).searchParams.get('t');
   if (!token) return false;
 

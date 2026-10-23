@@ -62,24 +62,42 @@ export default function QrModal({
           )}
         </div>
 
-        <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-3)', wordBreak: 'break-all', marginBottom: '14px' }}>
-          Target: {steerUrl || `/r/${activeRunId}`}
+        <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-3)', wordBreak: 'break-all', marginBottom: '14px', background: 'rgba(255, 255, 255, 0.04)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <div style={{ color: 'var(--accent)', fontWeight: 600, marginBottom: '2px' }}>TARGET REMOTE URL:</div>
+          <div>{steerUrl || `http://localhost:3000/r/${activeRunId}`}</div>
         </div>
 
-        <button
-          className="btn-pill btn-pill-primary"
-          style={{ width: '100%' }}
-          onClick={() => {
-            onClose();
-            if (steerUrl) {
-              window.open(steerUrl, '_blank', 'noopener,noreferrer');
-            } else {
-              navigateTo(`/r/${activeRunId}`);
-            }
-          }}
-        >
-          Open Mobile Steer Simulator
-        </button>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button
+            className="btn-pill"
+            style={{ flex: 1, padding: '10px 14px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'var(--text)' }}
+            onClick={() => {
+              const target = steerUrl || `${window.location.origin}/r/${activeRunId}`;
+              navigator.clipboard.writeText(target);
+              alert('Copied link to clipboard: ' + target);
+            }}
+          >
+            📋 Copy Remote URL
+          </button>
+          <button
+            className="btn-pill btn-pill-primary"
+            style={{ flex: 1, padding: '10px 14px', fontSize: '12px' }}
+            onClick={() => {
+              onClose();
+              if (steerUrl) {
+                window.open(steerUrl, '_blank', 'noopener,noreferrer');
+              } else {
+                navigateTo(`/r/${activeRunId}`);
+              }
+            }}
+          >
+            Open Simulator ↗
+          </button>
+        </div>
+
+        <p style={{ fontSize: '11px', color: 'var(--text-3)', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>
+          💡 Ensure your phone is connected to the same Wi-Fi or laptop mobile hotspot.
+        </p>
       </div>
     </div>
   );

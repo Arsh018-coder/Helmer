@@ -1,0 +1,6 @@
+{
+  "name": "Helmer — VisionOS Pocket Steer",
+  "description": "Deterministic autonomous AI execution engine with Apple VisionOS extreme frosted glassmorphism, cryptographic flight recording, and pocket remote control.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

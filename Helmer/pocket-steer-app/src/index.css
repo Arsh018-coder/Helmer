@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #F5F7FB;
+    --bg-subtle: #EEF2F8;
+    --bg-card: #FFFFFF;
+    --text: #0B1F3A;
+    --text-2: #5B6B7A;
+    --text-3: #8A99A8;
+    --accent: #0E7C86;
+    --accent-tint: rgba(14, 124, 134, 0.09);
+    --accent-border: rgba(14, 124, 134, 0.25);
+    --accent-hover: #096169;
+    --accent-glow: rgba(14, 124, 134, 0.35);
+    --ok: #16A34A;
+    --ok-bg: rgba(22, 163, 74, 0.09);
+    --ok-border: rgba(22, 163, 74, 0.26);
+    --warn: #D97706;
+    --warn-bg: rgba(217, 119, 6, 0.09);
+    --warn-border: rgba(217, 119, 6, 0.26);
+    --err: #DC2626;
+    --err-bg: rgba(220, 38, 38, 0.09);
+    --err-border: rgba(220, 38, 38, 0.26);
+
+    /* VisionOS Specular Bevel & Shadow System */
+    --shadow-glass: 
+      inset 0 2px 2.5px 0 #FFFFFF, 
+      inset 0 -1.5px 2px 0 rgba(11, 31, 58, 0.04), 
+      inset 2px 0 2.5px 0 rgba(255, 255, 255, 0.8),
+      0 24px 54px -10px rgba(11, 31, 58, 0.12), 
+      0 8px 20px -3px rgba(11, 31, 58, 0.05);
+
+    --shadow-glass-elevated: 
+      inset 0 2.5px 3px 0 #FFFFFF, 
+      inset 0 -2px 3px 0 rgba(11, 31, 58, 0.04), 
+      inset 2.5px 0 3px 0 rgba(255, 255, 255, 0.85),
+      0 30px 64px -12px rgba(11, 31, 58, 0.16), 
+      0 10px 26px -2px rgba(11, 31, 58, 0.06);
+
+    --shadow-glass-card:
+      inset 0 1.5px 2px 0 #FFFFFF,
+      inset 0 -1px 1.5px 0 rgba(11, 31, 58, 0.03),
+      0 14px 34px -6px rgba(11, 31, 58, 0.08);
+
+    --shadow-glass-button:
+      inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 1.5px 0 rgba(11, 31, 58, 0.05),
+      0 8px 20px -4px rgba(11, 31, 58, 0.1);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
+    overflow-x: hidden;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  }
+}
+
+/* Glassmorphism Surface Primitives */
+.glass-surface {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0.42) 100%);
+  backdrop-filter: blur(40px) saturate(230%);
+  -webkit-backdrop-filter: blur(40px) saturate(230%);
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-top: 1.5px solid #FFFFFF;
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-elevated {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.28) 48%, rgba(255, 255, 255, 0.55) 100%);
+  backdrop-filter: blur(50px) saturate(240%);
+  -webkit-backdrop-filter: blur(50px) saturate(240%);
+  border: 1.2px solid rgba(255, 255, 255, 0.96);
+  border-top: 2px solid #FFFFFF;
+  box-shadow: var(--shadow-glass-elevated);
+}
+
+.glass-subtle {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0.14) 100%);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-top: 1px solid #FFFFFF;
+  box-shadow: var(--shadow-glass-card);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0.48) 100%);
+  backdrop-filter: blur(36px) saturate(220%);
+  -webkit-backdrop-filter: blur(36px) saturate(220%);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-top: 1.5px solid #FFFFFF;
+  box-shadow: var(--shadow-glass-card);
+}
+
+/* Steer Giant Buttons */
+.steer-btn-pause {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.82) 0%, rgba(253, 230, 138, 0.42) 100%);
+  backdrop-filter: blur(35px) saturate(220%);
+  -webkit-backdrop-filter: blur(35px) saturate(220%);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-top: 1.8px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 
+    inset 0 1.5px 2px 0 #FFFFFF,
+    0 12px 30px -6px rgba(217, 119, 6, 0.16);
+}
+
+.steer-btn-stop {
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.85) 0%, rgba(254, 226, 226, 0.45) 100%);
+  backdrop-filter: blur(35px) saturate(220%);
+  -webkit-backdrop-filter: blur(35px) saturate(220%);
+  border: 1px solid rgba(220, 38, 38, 0.32);
+  border-top: 1.8px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 
+    inset 0 1.5px 2px 0 #FFFFFF,
+    0 12px 30px -6px rgba(220, 38, 38, 0.18);
+}
+
+.steer-btn-teal {
+  background: linear-gradient(135deg, #0E7C86 0%, #096169 100%);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.35),
+    0 14px 28px -6px rgba(14, 124, 134, 0.42);
+}
+
+/* Ambient breathing mesh animations */
+@keyframes ambient-breathing {
+  0%, 100% {
+    transform: scale(1) translate(0, 0);
+    opacity: 0.85;
+  }
+  33% {
+    transform: scale(1.1) translate(25px, -30px);
+    opacity: 0.95;
+  }
+  66% {
+    transform: scale(0.95) translate(-20px, 25px);
+    opacity: 0.8;
+  }
+}
+
+.animate-ambient-mesh {
+  animation: ambient-breathing 40s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+/* Glass Specular Sheen Effect */
+.specular-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.specular-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  transform: skewX(-20deg);
+  transition: transform 0.8s ease;
+  pointer-events: none;
+}
+
+.specular-shine:hover::after,
+.specular-shine:active::after {
+  transform: skewX(-20deg) translateX(300%);
+}
+
+/* Custom micro scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(11, 31, 58, 0.12);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(11, 31, 58, 0.22);
+}

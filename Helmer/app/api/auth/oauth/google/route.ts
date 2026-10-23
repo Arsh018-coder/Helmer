@@ -7,7 +7,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = url.origin;
-  const redirectUri = `${origin}/api/auth/oauth/callback/google`;
+  const returnTo = url.searchParams.get('returnTo') || '/';
+
+  // Read actual host from request headers so phone Wi-Fi IP is preserved
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || url.host;
+  const proto = request.headers.get('x-forwarded-proto') || (url.protocol.replace(':', '') || 'http');
+  const clientOrigin = `${proto}://${host}`;
+
+  const redirectUri = `${origin}/auth/google/callback`;
   const state = generateOAuthState();
 
   const googleAuthUrl = getGoogleAuthUrl(state, redirectUri);
@@ -20,6 +27,20 @@ export async function GET(request: Request) {
       sameSite: 'lax',
       path: '/',
       maxAge: 10 * 60, // 10 minutes
+    });
+    response.cookies.set('oauth_return_to', encodeURIComponent(returnTo), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 10 * 60,
+    });
+    response.cookies.set('oauth_client_origin', encodeURIComponent(clientOrigin), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 10 * 60,
     });
     return response;
   }

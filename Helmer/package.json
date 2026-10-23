@@ -5,7 +5,7 @@
   "type": "module",
   "main": "main.js",
   "scripts": {
-    "dev": "concurrently --names \"next,worker\" --prefix-colors \"cyan,yellow\" \"next dev\" \"npm run worker\"",
+    "dev": "concurrently --names \"next,worker\" --prefix-colors \"cyan,yellow\" \"next dev -H 0.0.0.0 -p 3000\" \"npm run worker\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,7 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "dev:next": "next dev",
+    "dev:next": "next dev -H 0.0.0.0 -p 3000",
     "clean": "rm -rf dist .next server.js",
     "electron:dev": "electron .",
     "build:win": "electron-builder --win",

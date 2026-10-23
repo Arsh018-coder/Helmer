@@ -65,5 +65,27 @@
     "createdAt": "2026-10-23T17:02:49.471Z",
     "updatedAt": "2026-10-23T17:02:49.471Z",
     "lastLoginAt": "2026-10-23T17:27:21.620Z"
+  },
+  {
+    "id": "usr_go_60d1d364c8d2",
+    "name": "LAKSHYA DHIMAN",
+    "email": "luckyyourdad6977@gmail.com",
+    "avatar": "https://lh3.googleusercontent.com/a/ACg8ocKMYOlrbWQSO8s3oq6BPB5BR20JopkN8d6UrSgsVfl_nLoJ6HoK=s96-c",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T17:25:26.483Z",
+    "updatedAt": "2026-10-23T17:25:26.483Z",
+    "lastLoginAt": "2026-10-23T17:25:26.483Z"
+  },
+  {
+    "id": "usr_go_8ab45171e079",
+    "name": "Arsh",
+    "email": "arsh@gmail.com",
+    "avatar": "https://api.dicebear.com/7.x/initials/svg?seed=Arsh&backgroundColor=0e7c86",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T19:06:28.597Z",
+    "updatedAt": "2026-10-23T19:06:28.597Z",
+    "lastLoginAt": "2026-10-23T19:06:28.597Z"
   }
 ]

@@ -125,7 +125,8 @@ export async function loginWithGoogle(profile?: { email: string; name?: string; 
   }
 
   if (typeof window !== 'undefined') {
-    window.location.href = '/api/auth/oauth/google';
+    const currentPath = window.location.pathname + window.location.search;
+    window.location.href = `/api/auth/oauth/google?returnTo=${encodeURIComponent(currentPath)}`;
   }
 }
 
