@@ -210,59 +210,76 @@ export default function Navbar({
                   alignItems: 'center',
                   justifyContent: 'center',
                   position: 'relative',
-                  padding: '3px',
+                  padding: '2px',
                   borderRadius: '50%',
-                  border: '1px solid var(--stroke-border)',
-                  background: 'rgba(255, 255, 255, 0.75)',
+                  border: '1.5px solid var(--accent-border, rgba(14, 124, 134, 0.35))',
+                  background: 'rgba(255, 255, 255, 0.85)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(11, 31, 58, 0.04)',
-                  width: '34px',
-                  height: '34px',
+                  boxShadow: '0 2px 8px rgba(11, 31, 58, 0.08)',
+                  width: '36px',
+                  height: '36px',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(14, 124, 134, 0.22)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(11, 31, 58, 0.08)';
                 }}
               >
                 {user.avatar ? (
                   <img
                     src={user.avatar}
                     alt={user.name}
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
                     style={{
-                      width: '26px',
-                      height: '26px',
+                      width: '28px',
+                      height: '28px',
                       borderRadius: '50%',
                       objectFit: 'cover',
-                      border: '1px solid var(--stroke-border)',
+                      display: 'block',
+                    }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      const fallback = e.currentTarget.parentElement?.querySelector('.avatar-initial-fallback') as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
                     }}
                   />
-                ) : (
-                  <div
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--accent) 0%, #1e40af 100%)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                ) : null}
+                <div
+                  className="avatar-initial-fallback"
+                  style={{
+                    display: user.avatar ? 'none' : 'flex',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--accent) 0%, #1e40af 100%)',
+                    color: '#ffffff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
                 <span
                   className="badge-dot-green"
                   style={{
                     position: 'absolute',
-                    bottom: '1px',
-                    right: '1px',
-                    width: '7px',
-                    height: '7px',
+                    bottom: '0px',
+                    right: '0px',
+                    width: '9px',
+                    height: '9px',
                     margin: 0,
-                    border: '1.5px solid #ffffff',
+                    border: '2px solid #ffffff',
                     borderRadius: '50%',
+                    boxShadow: '0 0 4px rgba(22, 163, 74, 0.5)',
                   }}
                   aria-hidden="true"
                 />
@@ -279,22 +296,62 @@ export default function Navbar({
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     right: 0,
-                    width: '240px',
-                    padding: '12px',
-                    borderRadius: '14px',
-                    background: 'rgba(255, 255, 255, 0.95)',
-                    boxShadow: '0 14px 40px rgba(11, 31, 58, 0.15), 0 0 0 1px rgba(11, 31, 58, 0.08)',
+                    width: '250px',
+                    padding: '14px',
+                    borderRadius: '16px',
+                    background: 'rgba(255, 255, 255, 0.96)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    boxShadow: '0 16px 44px rgba(11, 31, 58, 0.16), 0 0 0 1px rgba(11, 31, 58, 0.08)',
                     zIndex: 200,
                     animation: 'dropdownFadeIn 0.15s ease-out',
                   }}
                 >
-                  {/* User summary header */}
-                  <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid var(--stroke-subtle)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {user.name}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {user.email}
+                  {/* User summary header with Profile Picture */}
+                  <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--stroke-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '1.5px solid var(--accent-border, rgba(14, 124, 134, 0.35))',
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, var(--accent) 0%, #1e40af 100%)',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '15px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ overflow: 'hidden', minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {user.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-2)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {user.email}
+                        </div>
+                      </div>
                     </div>
                     <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span

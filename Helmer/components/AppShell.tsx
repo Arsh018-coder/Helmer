@@ -159,6 +159,8 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   // Authentication State
   const [user, setUser] = useState<User | null>(null);
+  const [showWelcomeToast, setShowWelcomeToast] = useState(false);
+  const [isWelcomeDismissing, setIsWelcomeDismissing] = useState(false);
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -172,6 +174,35 @@ export default function AppShell({ route, id }: AppShellProps) {
     window.addEventListener('helmer-auth-change', handleAuthChange);
     return () => window.removeEventListener('helmer-auth-change', handleAuthChange);
   }, []);
+
+  // Pop and disappear welcome toast for authenticated user
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user) {
+      const params = new URLSearchParams(window.location.search);
+      const isAuthReturn = params.get('auth') === 'account' || params.get('auth') === 'success';
+      const alreadyShown = sessionStorage.getItem('helmer_welcome_shown');
+
+      if (isAuthReturn || !alreadyShown) {
+        setShowWelcomeToast(true);
+        sessionStorage.setItem('helmer_welcome_shown', 'true');
+
+        // Automatically pop and disappear after 4.5 seconds
+        const dismissTimer = setTimeout(() => {
+          setIsWelcomeDismissing(true);
+          setTimeout(() => {
+            setShowWelcomeToast(false);
+            setIsWelcomeDismissing(false);
+          }, 450);
+        }, 4500);
+
+        if (isAuthReturn) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        return () => clearTimeout(dismissTimer);
+      }
+    }
+  }, [user]);
 
   // Console Live Engine Terminal state
   const [consoleLogs, setConsoleLogs] = useState<
@@ -863,26 +894,41 @@ export default function AppShell({ route, id }: AppShellProps) {
             </div>
 
             <div className="container hero-content">
-              {user ? (
+              {showWelcomeToast && user ? (
                 <div
                   className="user-greeting-banner glass-panel"
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '12px',
-                    padding: '8px 16px',
+                    padding: '8px 18px',
                     borderRadius: '30px',
-                    background: 'rgba(255, 255, 255, 0.9)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid var(--accent-border)',
-                    boxShadow: '0 4px 18px rgba(11, 31, 58, 0.08)',
+                    background: 'rgba(255, 255, 255, 0.94)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1.5px solid var(--accent-border, rgba(14, 124, 134, 0.3))',
+                    boxShadow: '0 12px 32px rgba(11, 31, 58, 0.12), 0 2px 8px rgba(14, 124, 134, 0.15)',
                     marginBottom: '16px',
+                    animation: isWelcomeDismissing
+                      ? 'welcomePopOut 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+                      : 'welcomePopIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    transition: 'all 0.3s ease',
+                    zIndex: 40,
                   }}
                 >
                   <img
                     src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
                     alt={user.name}
-                    style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--accent)' }}
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1.5px solid var(--accent)',
+                      display: 'block',
+                    }}
                   />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
                     Welcome, {user.name}!
@@ -900,11 +946,11 @@ export default function AppShell({ route, id }: AppShellProps) {
                     }}
                     style={{
                       marginLeft: '6px',
-                      fontSize: '11.5px',
+                      fontSize: '11px',
                       fontWeight: 600,
                       color: 'var(--err)',
-                      padding: '4px 10px',
-                      borderRadius: '14px',
+                      padding: '3px 9px',
+                      borderRadius: '12px',
                       background: 'var(--err-bg)',
                       textDecoration: 'none',
                       transition: 'all 0.15s ease',
@@ -912,6 +958,31 @@ export default function AppShell({ route, id }: AppShellProps) {
                   >
                     Log out
                   </a>
+                  <button
+                    onClick={() => {
+                      setIsWelcomeDismissing(true);
+                      setTimeout(() => {
+                        setShowWelcomeToast(false);
+                        setIsWelcomeDismissing(false);
+                      }, 400);
+                    }}
+                    title="Dismiss"
+                    aria-label="Dismiss welcome notification"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-3)',
+                      cursor: 'pointer',
+                      padding: '0 4px',
+                      marginLeft: '2px',
+                      fontSize: '16px',
+                      lineHeight: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    &times;
+                  </button>
                 </div>
               ) : null}
 
