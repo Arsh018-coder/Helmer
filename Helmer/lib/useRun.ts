@@ -89,7 +89,9 @@ export function useRun(id: string | null, options: UseRunOptions = {}): UseRunRe
       setStatus(page.status);
       setError(null);
       setLoading(false);
-      setNow(Date.now());
+      if (page.status !== 'paused') {
+        setNow(Date.now());
+      }
 
       if (!TERMINAL_RUN_STATUSES.includes(page.status)) {
         pollTimerRef.current = setTimeout(poll, page.status === 'paused' ? POLL_IDLE_MS : POLL_ACTIVE_MS);

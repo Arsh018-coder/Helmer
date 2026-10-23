@@ -37,12 +37,20 @@ interface AppShellProps {
 
 function summaryToRun(summary: RunSummary): AgentRun {
   const created = Date.parse(summary.createdAt);
-  const finished = summary.finishedAt ? Date.parse(summary.finishedAt) : Date.now();
+  const finished = summary.finishedAt ? Date.parse(summary.finishedAt) : null;
   const safeCreated = Number.isFinite(created) ? created : Date.now();
   const status: AgentRun['status'] =
     summary.status === 'queued'
       ? 'running'
       : summary.status;
+  const isTerminal = status === 'completed' || status === 'stopped' || status === 'failed';
+  const ageSec = Math.max(0, Math.round((Date.now() - safeCreated) / 1000));
+  const elapsedSec = finished
+    ? Math.min(180, Math.max(0, Math.round((finished - safeCreated) / 1000)))
+    : isTerminal || ageSec > 180
+    ? 180
+    : ageSec;
+
   return {
     id: summary.id,
     goal: summary.goal,
@@ -50,13 +58,13 @@ function summaryToRun(summary: RunSummary): AgentRun {
     verdict: summary.verdict ?? 'unverified',
     driftScore: 100,
     stepsBudget: { current: 0, max: 8 },
-    timeBudget: { current: Math.min(180, Math.max(0, Math.round((finished - safeCreated) / 1000))), max: 180 },
+    timeBudget: { current: elapsedSec, max: 180 },
     llmBudget: { current: 0, max: 25 },
     criteria: [],
     plan: [],
     steps: [],
     created_at: formatUtc(safeCreated),
-    duration: formatDuration(finished - safeCreated),
+    duration: finished ? formatDuration(finished - safeCreated) : `${elapsedSec}s`,
   };
 }
 
@@ -104,7 +112,7 @@ export default function AppShell({ route, id }: AppShellProps) {
    * The run this device is watching: the one in the URL, else the last one chosen from a list,
    * else the newest run. A `?t=` share token from the phone Steer link authorises it.
    */
-  const activeRunId = routeRunId || selectedRunId || runs[0]?.id || 'tx_883a90c1f';
+  const activeRunId = routeRunId || selectedRunId || 'tx_883a90c1f';
   const [shareToken, setShareToken] = useState<string>('');
   const [composerGoal, setComposerGoal] = useState<string>(
     'Synthesize Q3 financial reports, reconcile multi-currency wire drift, and propose currency hedge allocations.'
