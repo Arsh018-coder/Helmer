@@ -1,0 +1,60 @@
+[
+  {
+    "id": "usr_demo_01",
+    "name": "Lead Operator",
+    "email": "lead.operator@helmer.ai",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces",
+    "provider": "credentials",
+    "role": "admin",
+    "salt": "c0982737f9d6184b028d77e6c6a29b3231e92fe9d001c4f8de49067869b630ab",
+    "passwordHash": "8534cebf570cc2f4bc743d40f98d905675baf1ad5f5940cbb0b035b325b25d4d5320c71de9ebcdb279a1cfab3f4e9adc941544090c497e183499405675fa84da",
+    "createdAt": "2026-10-23T10:59:32.960Z",
+    "updatedAt": "2026-10-23T10:59:32.960Z"
+  },
+  {
+    "id": "usr_e8ba30be47ae",
+    "name": "Lead Auditor",
+    "email": "auditor@helmer.ai",
+    "provider": "credentials",
+    "role": "operator",
+    "salt": "c780f19e6840a49e89bc56498c7de00d4f40df8790fdea2239e39b7867715356",
+    "passwordHash": "bae7c241f5dc626cbc53284c043e0ba41f5ae9db4b16a05053abfc86e7dffcc602b8c3b282ea2748a9930c41600edacf3c603a371ef40d6fd230438efc977068",
+    "createdAt": "2026-10-23T10:59:33.084Z",
+    "updatedAt": "2026-10-23T10:59:33.084Z",
+    "lastLoginAt": "2026-10-23T11:01:13.963Z"
+  },
+  {
+    "id": "usr_go_3d54abb88a37",
+    "name": "Alex Vance",
+    "email": "alex.vance@gmail.com",
+    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces",
+    "provider": "google",
+    "role": "operator",
+    "createdAt": "2026-10-23T11:01:57.109Z",
+    "updatedAt": "2026-10-23T11:01:57.109Z",
+    "lastLoginAt": "2026-10-23T11:01:57.109Z"
+  },
+  {
+    "id": "usr_gi_b1b28bd956b0",
+    "name": "devx-operator",
+    "email": "operator@github.com",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces",
+    "provider": "github",
+    "role": "operator",
+    "createdAt": "2026-10-23T11:02:27.175Z",
+    "updatedAt": "2026-10-23T11:02:27.175Z",
+    "lastLoginAt": "2026-10-23T11:02:27.175Z"
+  },
+  {
+    "id": "usr_ef9318ff8860",
+    "name": "Marcus Wright",
+    "email": "marcus.wright@cyberdyne.ai",
+    "provider": "credentials",
+    "role": "operator",
+    "salt": "fe5165fb53b54c60846d8052989d2c81b606dfa563bf7de52fd40b2cbb231170",
+    "passwordHash": "1c14e973db763dda468c5c7b1fce1169e29aa57e9494c7733feeb8031694254d748a11e5084f8309a585970325136c4127ad626c44b84e8e6cb1337ead39a024",
+    "createdAt": "2026-10-23T11:04:40.918Z",
+    "updatedAt": "2026-10-23T11:04:40.918Z",
+    "lastLoginAt": "2026-10-23T11:04:40.918Z"
+  }
+]

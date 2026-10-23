@@ -25,7 +25,7 @@ import QrModal from '@/components/modals/QrModal';
 import RedirectModal from '@/components/modals/RedirectModal';
 import AuthModal from '@/components/modals/AuthModal';
 import ProfileDashboard from '@/components/ProfileDashboard';
-import { getCurrentUser, logout, type User } from '@/lib/auth';
+import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
 
 interface AppShellProps {
   route: string;
@@ -149,6 +149,9 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   useEffect(() => {
     setUser(getCurrentUser());
+    void refreshUserSession().then((verified) => {
+      if (verified) setUser(verified);
+    });
     const handleAuthChange = (e: Event) => {
       const customEvent = e as CustomEvent<User | null>;
       setUser(customEvent.detail ?? getCurrentUser());
