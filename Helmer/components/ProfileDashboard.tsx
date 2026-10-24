@@ -9,6 +9,7 @@ import {
   type CustomApiKey,
   getProfileSettings,
   saveProfileSettings,
+  getProviderMeta,
   clearApiKey,
   maskApiKey,
   validateApiKeyFormat,
@@ -30,8 +31,8 @@ export default function ProfileDashboard({
   onOpenAuthModal,
 }: ProfileDashboardProps) {
   const [settings, setSettings] = useState<ProfileSettings>(getProfileSettings());
-  const [showKeys, setShowKeys] = useState<{ [key in AiProvider]?: boolean }>({});
-  const [keyErrors, setKeyErrors] = useState<{ [key in AiProvider]?: string }>({});
+  const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
+  const [keyErrors, setKeyErrors] = useState<{ [key: string]: string | undefined }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' } | null>(null);
   const [copiedSession, setCopiedSession] = useState(false);
@@ -54,8 +55,8 @@ export default function ProfileDashboard({
     }, 4500);
   };
 
-  const handleProviderChange = (provider: AiProvider) => {
-    const meta = AI_PROVIDERS[provider];
+  const handleProviderChange = (provider: string) => {
+    const meta = getProviderMeta(provider, settings.customKeys || []);
     const updated = saveProfileSettings({
       activeProvider: provider,
       selectedModel: meta.defaultModel,
@@ -69,12 +70,13 @@ export default function ProfileDashboard({
     setSettings(updated);
   };
 
-  const handleKeyChange = (provider: AiProvider, value: string) => {
-    const keyFieldMap: Record<AiProvider, keyof ProfileSettings> = {
+  const handleKeyChange = (provider: string, value: string) => {
+    const keyFieldMap: Record<string, keyof ProfileSettings> = {
       claude: 'anthropicApiKey',
       gemini: 'geminiApiKey',
       openai: 'openaiApiKey',
       groq: 'groqApiKey',
+      deepseek: 'deepseekApiKey',
     };
 
     // Validate format immediately on input
@@ -84,24 +86,27 @@ export default function ProfileDashboard({
       [provider]: validation.valid ? undefined : validation.error,
     }));
 
-    setSettings((prev) => ({
-      ...prev,
-      [keyFieldMap[provider]]: value,
-    }));
+    if (keyFieldMap[provider]) {
+      setSettings((prev) => ({
+        ...prev,
+        [keyFieldMap[provider]]: value,
+      }));
+    }
   };
 
   const handleSaveKeys = async () => {
-    // Validate all keys before saving
-    const providers: AiProvider[] = ['gemini', 'openai', 'claude', 'groq'];
-    const keyFieldMap: Record<AiProvider, keyof ProfileSettings> = {
+    // Validate all standard keys before saving
+    const providers = ['deepseek', 'gemini', 'openai', 'claude', 'groq'];
+    const keyFieldMap: Record<string, keyof ProfileSettings> = {
       claude: 'anthropicApiKey',
       gemini: 'geminiApiKey',
       openai: 'openaiApiKey',
       groq: 'groqApiKey',
+      deepseek: 'deepseekApiKey',
     };
 
     let hasValidationError = false;
-    const newErrors: { [key in AiProvider]?: string } = {};
+    const newErrors: { [key: string]: string | undefined } = {};
 
     for (const p of providers) {
       const val = (settings[keyFieldMap[p]] as string) || '';
@@ -128,9 +133,22 @@ export default function ProfileDashboard({
         geminiApiKey: settings.geminiApiKey,
         openaiApiKey: settings.openaiApiKey,
         groqApiKey: settings.groqApiKey,
+        deepseekApiKey: settings.deepseekApiKey,
         customKeys: settings.customKeys || [],
       });
       setSettings(saved);
+
+      // Determine active API key to send directly
+      let activeKeyToSend = '';
+      if (saved.activeProvider === 'deepseek') activeKeyToSend = saved.deepseekApiKey || '';
+      else if (saved.activeProvider === 'gemini') activeKeyToSend = saved.geminiApiKey || '';
+      else if (saved.activeProvider === 'openai') activeKeyToSend = saved.openaiApiKey || '';
+      else if (saved.activeProvider === 'claude') activeKeyToSend = saved.anthropicApiKey || '';
+      else if (saved.activeProvider === 'groq') activeKeyToSend = saved.groqApiKey || '';
+      else {
+        const foundCustom = saved.customKeys?.find((k) => k.id === saved.activeProvider);
+        if (foundCustom) activeKeyToSend = foundCustom.apiKey;
+      }
 
       // 2. Synchronize with Next.js server runtime endpoint
       try {
@@ -144,6 +162,9 @@ export default function ProfileDashboard({
             geminiApiKey: saved.geminiApiKey,
             openaiApiKey: saved.openaiApiKey,
             groqApiKey: saved.groqApiKey,
+            deepseekApiKey: saved.deepseekApiKey,
+            customKeys: saved.customKeys || [],
+            activeApiKey: activeKeyToSend,
           }),
         });
       } catch {
@@ -163,34 +184,44 @@ export default function ProfileDashboard({
       showNotification('Please enter a name and API key.', 'error');
       return;
     }
+    const isDeepSeek =
+      customKeyName.toLowerCase().includes('deepseek') ||
+      customKeyProvider.toLowerCase().includes('deepseek');
     const newCustomKey: CustomApiKey = {
       id: 'ck_' + Math.random().toString(36).substring(2, 9),
       name: customKeyName.trim(),
-      providerOrModel: customKeyProvider.trim() || 'Custom LLM / Tool',
+      providerOrModel: customKeyProvider.trim() || (isDeepSeek ? 'deepseek-chat' : 'Custom LLM / Tool'),
       apiKey: customKeyValue.trim(),
       createdAt: new Date().toLocaleDateString(),
     };
     const updatedCustomKeys = [...(settings.customKeys || []), newCustomKey];
-    const saved = saveProfileSettings({ customKeys: updatedCustomKeys });
+    const saved = saveProfileSettings({
+      customKeys: updatedCustomKeys,
+      activeProvider: newCustomKey.id,
+      selectedModel: isDeepSeek ? 'deepseek-chat' : (newCustomKey.providerOrModel || 'custom-model'),
+      ...(isDeepSeek ? { deepseekApiKey: newCustomKey.apiKey } : {}),
+    });
     setSettings(saved);
     setCustomKeyName('');
     setCustomKeyProvider('');
     setCustomKeyValue('');
     setShowAddCustomModal(false);
-    showNotification(`Added custom API key: ${newCustomKey.name}`, 'success');
+    showNotification(`Added and activated custom API key: ${newCustomKey.name}`, 'success');
   };
 
   const handleDeleteCustomKey = (id: string) => {
     const updatedCustomKeys = (settings.customKeys || []).filter((k) => k.id !== id);
-    const saved = saveProfileSettings({ customKeys: updatedCustomKeys });
+    const nextActive = settings.activeProvider === id ? 'gemini' : settings.activeProvider;
+    const saved = saveProfileSettings({ customKeys: updatedCustomKeys, activeProvider: nextActive });
     setSettings(saved);
     showNotification('Custom API key removed.', 'success');
   };
 
-  const handleClearKey = (provider: AiProvider) => {
+  const handleClearKey = (provider: string) => {
     const updated = clearApiKey(provider);
     setSettings(updated);
-    showNotification(`${AI_PROVIDERS[provider].name} API key cleared.`, 'success');
+    const meta = getProviderMeta(provider, settings.customKeys || []);
+    showNotification(`${meta.name} API key cleared.`, 'success');
   };
 
   const handleCopySessionToken = () => {
@@ -201,11 +232,11 @@ export default function ProfileDashboard({
     setTimeout(() => setCopiedSession(false), 2000);
   };
 
-  const toggleShowKey = (provider: AiProvider) => {
+  const toggleShowKey = (provider: string) => {
     setShowKeys((prev) => ({ ...prev, [provider]: !prev[provider] }));
   };
 
-  const currentProviderMeta = AI_PROVIDERS[settings.activeProvider];
+  const currentProviderMeta = getProviderMeta(settings.activeProvider, settings.customKeys || []);
 
   // System diagnostics metrics dynamically computed from user runs (no static seeding)
   const userRuns = runs || [];
@@ -487,7 +518,7 @@ export default function ProfileDashboard({
             </label>
             <select
               value={settings.activeProvider}
-              onChange={(e) => handleProviderChange(e.target.value as AiProvider)}
+              onChange={(e) => handleProviderChange(e.target.value)}
               className="form-input"
               style={{
                 fontSize: '13px',
@@ -500,11 +531,22 @@ export default function ProfileDashboard({
                 cursor: 'pointer',
               }}
             >
-              {Object.values(AI_PROVIDERS).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.envVar})
-                </option>
-              ))}
+              <optgroup label="Standard AI Providers">
+                {Object.values(AI_PROVIDERS).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.envVar})
+                  </option>
+                ))}
+              </optgroup>
+              {settings.customKeys && settings.customKeys.length > 0 && (
+                <optgroup label="Custom User API Keys">
+                  {settings.customKeys.map((ck) => (
+                    <option key={ck.id} value={ck.id}>
+                      ★ {ck.name} — {ck.providerOrModel}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
@@ -559,6 +601,11 @@ export default function ProfileDashboard({
                   {m}
                 </option>
               ))}
+              {settings.selectedModel && !currentProviderMeta.availableModels.includes(settings.selectedModel) && (
+                <option value={settings.selectedModel}>
+                  {settings.selectedModel}
+                </option>
+              )}
             </select>
           </div>
         </div>
@@ -567,11 +614,12 @@ export default function ProfileDashboard({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {(Object.values(AI_PROVIDERS)).map((prov) => {
             const isSelected = settings.activeProvider === prov.id;
-            const keyFieldMap: Record<AiProvider, keyof ProfileSettings> = {
+            const keyFieldMap: Record<string, keyof ProfileSettings> = {
               claude: 'anthropicApiKey',
               gemini: 'geminiApiKey',
               openai: 'openaiApiKey',
               groq: 'groqApiKey',
+              deepseek: 'deepseekApiKey',
             };
             const currentVal = (settings[keyFieldMap[prov.id]] as string) || '';
             const isConfigured = Boolean(currentVal.trim());
@@ -778,6 +826,30 @@ export default function ProfileDashboard({
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {settings.activeProvider === ck.id ? (
+                        <span
+                          style={{
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            fontFamily: 'var(--mono)',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'var(--accent)',
+                            color: '#ffffff',
+                          }}
+                        >
+                          ACTIVE ENGINE
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleProviderChange(ck.id)}
+                          className="btn-pill btn-pill-secondary btn-pill-sm"
+                          style={{ fontSize: '11px', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+                        >
+                          Select as Active
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setShowCustomKeys((prev) => ({ ...prev, [ck.id]: !prev[ck.id] }))}

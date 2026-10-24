@@ -4,10 +4,10 @@
  * model routing preferences, and engine diagnostic telemetry.
  */
 
-export type AiProvider = 'claude' | 'gemini' | 'openai' | 'groq';
+export type AiProvider = 'claude' | 'gemini' | 'openai' | 'groq' | 'deepseek' | string;
 
 export interface ProviderMeta {
-  id: AiProvider;
+  id: string;
   name: string;
   envVar: string;
   defaultModel: string;
@@ -17,20 +17,19 @@ export interface ProviderMeta {
   color: string;
 }
 
-export const AI_PROVIDERS: Record<AiProvider, ProviderMeta> = {
-  claude: {
-    id: 'claude',
-    name: 'Anthropic Claude',
-    envVar: 'ANTHROPIC_API_KEY',
-    defaultModel: 'claude-3-7-sonnet-20250219',
+export const AI_PROVIDERS: Record<string, ProviderMeta> = {
+  deepseek: {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    envVar: 'DEEPSEEK_API_KEY',
+    defaultModel: 'deepseek-chat',
     availableModels: [
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022',
+      'deepseek-chat',
+      'deepseek-reasoner',
     ],
-    placeholder: 'sk-ant-api03-...',
-    docUrl: 'https://console.anthropic.com/settings/keys',
-    color: '#D97706',
+    placeholder: 'sk-...',
+    docUrl: 'https://platform.deepseek.com/api_keys',
+    color: '#0066FF',
   },
   gemini: {
     id: 'gemini',
@@ -60,6 +59,20 @@ export const AI_PROVIDERS: Record<AiProvider, ProviderMeta> = {
     docUrl: 'https://platform.openai.com/api-keys',
     color: '#10B981',
   },
+  claude: {
+    id: 'claude',
+    name: 'Anthropic Claude',
+    envVar: 'ANTHROPIC_API_KEY',
+    defaultModel: 'claude-3-7-sonnet-20250219',
+    availableModels: [
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+    ],
+    placeholder: 'sk-ant-api03-...',
+    docUrl: 'https://console.anthropic.com/settings/keys',
+    color: '#D97706',
+  },
   groq: {
     id: 'groq',
     name: 'Groq (LPU Inference)',
@@ -85,12 +98,13 @@ export interface CustomApiKey {
 }
 
 export interface ProfileSettings {
-  activeProvider: AiProvider;
+  activeProvider: string;
   selectedModel: string;
   anthropicApiKey: string;
   geminiApiKey: string;
   openaiApiKey: string;
   groqApiKey: string;
+  deepseekApiKey?: string;
   customKeys?: CustomApiKey[];
   workerTag: string;
   workerPort: number;
@@ -108,12 +122,46 @@ export const DEFAULT_SETTINGS: ProfileSettings = {
   geminiApiKey: '',
   openaiApiKey: '',
   groqApiKey: '',
+  deepseekApiKey: '',
   customKeys: [],
   workerTag: 'helmer-worker-alpha-01',
   workerPort: 3000,
   sessionToken: 'hlm_ses_9f4e2b819c',
   encryptionMode: 'AES-256-GCM Secure Enclave',
 };
+
+/** Get metadata for any standard provider or custom key */
+export function getProviderMeta(providerId: string, customKeys: CustomApiKey[] = []): ProviderMeta {
+  if (providerId in AI_PROVIDERS) {
+    return AI_PROVIDERS[providerId];
+  }
+  const custom = customKeys.find((c) => c.id === providerId || c.name.toLowerCase() === providerId.toLowerCase());
+  if (custom) {
+    const isDeepSeek =
+      custom.name.toLowerCase().includes('deepseek') ||
+      custom.providerOrModel.toLowerCase().includes('deepseek');
+    return {
+      id: custom.id,
+      name: `${custom.name} (Custom Key)`,
+      envVar: isDeepSeek ? 'DEEPSEEK_API_KEY' : 'CUSTOM_API_KEY',
+      defaultModel: isDeepSeek ? 'deepseek-chat' : (custom.providerOrModel || 'custom-model'),
+      availableModels: isDeepSeek ? ['deepseek-chat', 'deepseek-reasoner'] : [custom.providerOrModel || 'custom-model'],
+      placeholder: 'sk-...',
+      docUrl: isDeepSeek ? 'https://platform.deepseek.com' : '',
+      color: isDeepSeek ? '#0066FF' : '#8B5CF6',
+    };
+  }
+  return {
+    id: providerId,
+    name: providerId,
+    envVar: 'CUSTOM_API_KEY',
+    defaultModel: 'custom-model',
+    availableModels: ['custom-model'],
+    placeholder: 'sk-...',
+    docUrl: '',
+    color: '#64748B',
+  };
+}
 
 /** Get the current profile and API key settings from browser storage. */
 export function getProfileSettings(): ProfileSettings {
@@ -150,15 +198,19 @@ export function saveProfileSettings(updates: Partial<ProfileSettings>): ProfileS
 }
 
 /** Clear a specific API key */
-export function clearApiKey(provider: AiProvider): ProfileSettings {
-  const keyFieldMap: Record<AiProvider, keyof ProfileSettings> = {
+export function clearApiKey(provider: string): ProfileSettings {
+  const keyFieldMap: Record<string, keyof ProfileSettings> = {
     claude: 'anthropicApiKey',
     gemini: 'geminiApiKey',
     openai: 'openaiApiKey',
     groq: 'groqApiKey',
+    deepseek: 'deepseekApiKey',
   };
 
-  return saveProfileSettings({ [keyFieldMap[provider]]: '' });
+  if (keyFieldMap[provider]) {
+    return saveProfileSettings({ [keyFieldMap[provider]]: '' });
+  }
+  return getProfileSettings();
 }
 
 /** Obfuscate API key for preview while retaining prefix and suffix. */
@@ -181,7 +233,7 @@ export interface KeyValidationResult {
  * Throws or returns an error message if a key belonging to another model/provider
  * or an invalid format is entered.
  */
-export function validateApiKeyFormat(provider: AiProvider, rawKey: string): KeyValidationResult {
+export function validateApiKeyFormat(provider: string, rawKey: string): KeyValidationResult {
   const key = rawKey.trim();
   if (!key) return { valid: true };
 
@@ -198,6 +250,22 @@ export function validateApiKeyFormat(provider: AiProvider, rawKey: string): KeyV
     }
     if (!key.startsWith('AIzaSy') && !key.startsWith('AQ.') && key.length < 20) {
       return { valid: false, error: 'Invalid Google Gemini API key format. Standard keys start with "AIzaSy" or "AQ.".' };
+    }
+  } else if (provider === 'deepseek') {
+    if (key.startsWith('sk-ant-')) {
+      return { valid: false, error: 'Detected Anthropic Claude key! This field only accepts DeepSeek API keys (starting with sk-).' };
+    }
+    if (key.startsWith('AIzaSy') || key.startsWith('AQ.')) {
+      return { valid: false, error: 'Detected Google Gemini key! This field only accepts DeepSeek API keys (starting with sk-).' };
+    }
+    if (key.startsWith('gsk_')) {
+      return { valid: false, error: 'Detected Groq key! This field only accepts DeepSeek API keys (starting with sk-).' };
+    }
+    if (!key.startsWith('sk-')) {
+      return { valid: false, error: 'Invalid DeepSeek API key format. Standard keys start with "sk-".' };
+    }
+    if (key.length < 20) {
+      return { valid: false, error: 'DeepSeek API key is too short. Please verify your complete key.' };
     }
   } else if (provider === 'openai') {
     if (key.startsWith('sk-ant-')) {

@@ -251,7 +251,9 @@ export function createLlmClient(options: LlmClientOptions): LlmClient {
           body: JSON.stringify({
             model: config.llmModel,
             messages,
-            temperature: 0.2,
+            ...((config.llmModel.includes('reasoner') || config.llmModel.startsWith('o1') || config.llmModel.startsWith('o3'))
+              ? {}
+              : { temperature: 0.2 }),
           }),
           signal: controller.signal,
         });
@@ -282,7 +284,8 @@ export function createLlmClient(options: LlmClientOptions): LlmClient {
         }
 
         const payload = (await response.json()) as ChatCompletionResponse;
-        const content = payload.choices?.[0]?.message?.content ?? '';
+        const msg = payload.choices?.[0]?.message;
+        const content = msg?.content || (msg as any)?.reasoning_content || '';
 
         usage.calls += 1;
         if (payload.usage?.prompt_tokens !== undefined || payload.usage?.completion_tokens !== undefined) {

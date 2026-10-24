@@ -48,12 +48,24 @@ export const config = {
   },
 
   get llmBaseUrl(): string {
+    if (process.env.LLM_BASE_URL) return process.env.LLM_BASE_URL;
+    if (process.env.ACTIVE_LLM_PROVIDER === 'deepseek' || process.env.DEEPSEEK_API_KEY) {
+      return 'https://api.deepseek.com';
+    }
+    if (process.env.ACTIVE_LLM_PROVIDER === 'groq' || (process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY)) {
+      return 'https://api.groq.com/openai/v1';
+    }
+    if (process.env.ACTIVE_LLM_PROVIDER === 'openai' || (process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY)) {
+      return 'https://api.openai.com/v1';
+    }
     return optionalEnv('LLM_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/');
   },
   get llmApiKey(): string {
     return optionalEnv(
       'LLM_API_KEY',
-      process.env.GEMINI_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+        process.env.CUSTOM_API_KEY ||
+        process.env.GEMINI_API_KEY ||
         process.env.OPENAI_API_KEY ||
         process.env.ANTHROPIC_API_KEY ||
         process.env.GROQ_API_KEY ||
@@ -61,6 +73,10 @@ export const config = {
     );
   },
   get llmModel(): string {
+    if (process.env.LLM_MODEL) return process.env.LLM_MODEL;
+    if (process.env.DEEPSEEK_API_KEY || process.env.ACTIVE_LLM_PROVIDER === 'deepseek') return 'deepseek-chat';
+    if (process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) return 'llama-3.3-70b-versatile';
+    if (process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) return 'gpt-4o';
     return optionalEnv('LLM_MODEL', 'gemini-2.5-flash');
   },
 

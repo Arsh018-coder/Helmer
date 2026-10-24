@@ -30,7 +30,7 @@ const AuthModal = dynamic(() => import('@/components/modals/AuthModal'), { ssr: 
 const ProfileDashboard = dynamic(() => import('@/components/ProfileDashboard'), { ssr: false });
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { getCurrentUser, logout, refreshUserSession, type User } from '@/lib/auth';
-import { getProfileSettings, maskApiKey, type ProfileSettings } from '@/lib/profileSettings';
+import { getProfileSettings, maskApiKey, getProviderMeta, type ProfileSettings } from '@/lib/profileSettings';
 
 interface AppShellProps {
   route: string;
@@ -604,16 +604,37 @@ export default function AppShell({ route, id }: AppShellProps) {
       return { provider: apiProvider, key: apiKey.trim(), source: 'custom' as const };
     }
     if (keySource === 'profile') {
-      const pKey =
-        settings.activeProvider === 'gemini'
-          ? settings.geminiApiKey
-          : settings.activeProvider === 'openai'
-          ? settings.openaiApiKey
-          : settings.activeProvider === 'claude'
-          ? settings.anthropicApiKey
-          : settings.groqApiKey;
+      let pKey = '';
+      let provider = settings.activeProvider;
+      let model = settings.selectedModel;
+
+      if (provider === 'gemini') pKey = settings.geminiApiKey;
+      else if (provider === 'openai') pKey = settings.openaiApiKey;
+      else if (provider === 'claude') pKey = settings.anthropicApiKey;
+      else if (provider === 'groq') pKey = settings.groqApiKey;
+      else if (provider === 'deepseek') pKey = settings.deepseekApiKey || '';
+      else {
+        // Look up customKeys
+        const custom = settings.customKeys?.find((k) => k.id === provider || k.name.toLowerCase() === provider.toLowerCase());
+        if (custom) {
+          pKey = custom.apiKey;
+          const isDs = custom.name.toLowerCase().includes('deepseek') || custom.providerOrModel.toLowerCase().includes('deepseek');
+          provider = isDs ? 'deepseek' : custom.id;
+          model = isDs ? (model || 'deepseek-chat') : (model || custom.providerOrModel);
+        }
+      }
+
+      // Also fallback if user chose deepseek but saved it in customKeys
+      if (!pKey && (provider === 'deepseek' || settings.activeProvider === 'deepseek')) {
+        const customDs = settings.customKeys?.find((k) => k.name.toLowerCase().includes('deepseek') || k.providerOrModel.toLowerCase().includes('deepseek'));
+        if (customDs) {
+          pKey = customDs.apiKey;
+          provider = 'deepseek';
+        }
+      }
+
       if (pKey) {
-        return { provider: settings.activeProvider, key: pKey, source: 'profile' as const };
+        return { provider, key: pKey, model, source: 'profile' as const };
       }
     }
     // Fallback or explicit 'system'
@@ -628,16 +649,21 @@ export default function AppShell({ route, id }: AppShellProps) {
     // Sync selected credentials to runtime engine before launch
     try {
       const eff = getEffectiveApiKeyAndProvider();
+      const settings = getProfileSettings();
       if (eff.key) {
         await fetch('/api/settings/keys', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             activeProvider: eff.provider,
+            selectedModel: settings.selectedModel || (eff as any).model || 'deepseek-chat',
+            ...(eff.provider === 'deepseek' ? { deepseekApiKey: eff.key } : {}),
             ...(eff.provider === 'gemini' ? { geminiApiKey: eff.key } : {}),
             ...(eff.provider === 'openai' ? { openaiApiKey: eff.key } : {}),
             ...(eff.provider === 'claude' ? { anthropicApiKey: eff.key } : {}),
             ...(eff.provider === 'groq' ? { groqApiKey: eff.key } : {}),
+            customKeys: settings.customKeys || [],
+            activeApiKey: eff.key,
           }),
         });
       }
@@ -1908,13 +1934,14 @@ export default function AppShell({ route, id }: AppShellProps) {
                 {keySource === 'profile' && (
                   <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(14, 124, 134, 0.06)', border: '1px solid rgba(14, 124, 134, 0.22)', fontSize: '12px' }}>
                     {(() => {
-                      const p = profileSettingsState.activeProvider;
-                      const k = p === 'gemini' ? profileSettingsState.geminiApiKey : p === 'openai' ? profileSettingsState.openaiApiKey : p === 'claude' ? profileSettingsState.anthropicApiKey : profileSettingsState.groqApiKey;
+                      const eff = getEffectiveApiKeyAndProvider();
+                      const meta = getProviderMeta(eff.provider, profileSettingsState.customKeys || []);
+                      const k = eff.key;
                       if (!k) {
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                             <span style={{ color: 'var(--warn)', fontWeight: 500 }}>
-                              ⚠️ No API key saved for <strong>{p.toUpperCase()}</strong> in Profile. Add it in Profile or switch to Helmer LLM.
+                              ⚠️ No API key saved for <strong>{meta.name}</strong> in Profile. Add it in Profile or switch to Helmer LLM.
                             </span>
                             <button
                               type="button"
@@ -1931,7 +1958,7 @@ export default function AppShell({ route, id }: AppShellProps) {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                           <div>
                             <div style={{ color: 'var(--text)', fontWeight: 600 }}>
-                              Active Provider: <span style={{ color: 'var(--accent)' }}>{p.toUpperCase()}</span> ({profileSettingsState.selectedModel})
+                              Active Provider: <span style={{ color: meta.color || 'var(--accent)' }}>{meta.name.toUpperCase()}</span> ({profileSettingsState.selectedModel})
                             </div>
                             <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-2)', marginTop: '2px' }}>
                               Key: <code>{maskApiKey(k)}</code> · Synchronized with worker sandbox
