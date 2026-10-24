@@ -51,6 +51,8 @@ export interface AgentRun {
   created_at: string;
   duration: string;
   artifactContent?: string;
+  preRedirectArtifact?: string | null;
+  redirectInstruction?: string | null;
   incidentReport?: string;
   /**
    * Running token totals from `llm_usage` events (feature F6, shown next to the budget bars).

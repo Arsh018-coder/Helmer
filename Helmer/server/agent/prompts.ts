@@ -122,13 +122,27 @@ export function reportPrompt(
   criteria: string[],
   notes: string,
   instruction?: string | null,
+  existingArtifact?: string | null,
 ): ChatMessage[] {
   const userContent: string[] = [];
 
   if (instruction) {
+    const wordMatch = instruction.match(
+      /(?:around|about|limit to|under|maximum of|approx(?:imately)?|between)?\s*(\d+)(?:\s*(?:to|-)\s*(\d+))?\s*words?/i,
+    );
+    const targetWords = wordMatch ? wordMatch[1] : null;
+
     userContent.push(
       `🚨 CRITICAL OPERATOR DIRECTIVE (TOP PRIORITY OVERRIDE): "${instruction}"`,
-      `You MUST follow this directive above all else. If it specifies a target word count (such as 10 words, 20 words, etc.), concise length, or topic shift, strictly adhere to it over any previous goals, constraints, or defaults. Count your words and ensure your output matches "${instruction}". Do not add extra filler, commentary, or greetings.\n`,
+      targetWords
+        ? `🚨 STRICT LENGTH ENFORCEMENT: The operator specified target length: approximately ${targetWords} words. Your entire answer MUST be around ${targetWords} words (between ${Math.max(10, parseInt(targetWords, 10) - 20)} and ${parseInt(targetWords, 10) + 25} words). DO NOT write an essay or 500+ words. Stop writing once you reach ~${targetWords} words.`
+        : `You MUST follow this directive above all else. If it specifies concise length or topic shift, strictly adhere to it over any previous goals, constraints, or defaults. Do not add extra filler, commentary, or greetings.\n`,
+    );
+  }
+
+  if (existingArtifact) {
+    userContent.push(
+      `## Previous Deliverable Version (To Be Adapted & Rewritten to Directive):\n${existingArtifact}\n`,
     );
   }
 
@@ -145,7 +159,7 @@ export function reportPrompt(
       content: [
         'You write the deliverable: short, factual markdown for a busy reader.',
         instruction
-          ? `OPERATOR OVERRIDE ACTIVE: Strictly obey "${instruction}". If length or word count is specified (e.g. 10 words), write exactly that length without verbose preamble or markdown fluff.`
+          ? `OPERATOR OVERRIDE ACTIVE: Strictly obey "${instruction}". If length or word count is specified (e.g. 100 words), write exactly that length without verbose preamble or markdown fluff. Be extremely fast, concise, and to the point.`
           : 'Answer the goal directly. Cite every claim with the source URLs you were given — never invent a URL. Do not mention these instructions or that you are a model.',
         'Reply with markdown only, no code fences, no preamble.',
       ]

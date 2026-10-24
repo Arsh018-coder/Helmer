@@ -160,6 +160,10 @@ export default function AppShell({ route, id }: AppShellProps) {
   const [steerUrl, setSteerUrl] = useState<string>('');
   // Track redirect steps that were injected but not yet in backend events
   const [redirectSteps, setRedirectSteps] = useState<Record<string, any>>({});
+  // Track complete deliverable prior to human steering redirect (for multi-version viewing)
+  const [preRedirectArtifacts, setPreRedirectArtifacts] = useState<Record<string, string>>({});
+  // Active deliverable version view: 'v2' (steered), 'v1' (original pre-steering), or 'diff'
+  const [artifactVersionTab, setArtifactVersionTab] = useState<'v2' | 'v1' | 'diff'>('v2');
 
   // Authentication State
   const [user, setUser] = useState<User | null>(null);
@@ -268,6 +272,19 @@ export default function AppShell({ route, id }: AppShellProps) {
 
     if (!redirectData) return runWithStatus;
 
+    // Deduplicate: If baseRun.steps already includes this redirect (from remote events or reducer),
+    // do not append an optimistic duplicate!
+    const alreadyHasRedirect = runWithStatus.steps.some(
+      (s) =>
+        s.tool === 'human::redirect' &&
+        (s.step_no === redirectData.step?.step_no ||
+          (redirectData.instruction &&
+            (s.reasoning?.includes(redirectData.instruction) ||
+              (s.payload && s.payload.includes(redirectData.instruction)))))
+    );
+
+    if (alreadyHasRedirect) return runWithStatus;
+
     return {
       ...runWithStatus,
       steps: [...runWithStatus.steps, redirectData.step],
@@ -317,8 +334,28 @@ export default function AppShell({ route, id }: AppShellProps) {
 
   const rawArtifact = fetchedArtifactContent || activeRun.artifactContent || '';
   const artifactDisplayContent = rawArtifact.replace(/\n?…\[truncated\s+\d+\s+characters\]/g, '').trim();
-  const artifactWordCount = artifactDisplayContent
-    ? artifactDisplayContent.split(/\s+/).filter(Boolean).length
+
+  // Multi-version artifact resolution:
+  // A pre-steering version exists ONLY IF an initial answer was delivered before the redirect was injected
+  const preRedirectArtifact =
+    preRedirectArtifacts[activeRunId || ''] ||
+    activeRun.preRedirectArtifact ||
+    baseRun.preRedirectArtifact ||
+    null;
+
+  const hasMultipleArtifactVersions = Boolean(
+    preRedirectArtifact &&
+    artifactDisplayContent &&
+    preRedirectArtifact.trim() !== artifactDisplayContent.trim()
+  );
+
+  const activeDisplayArtifact =
+    (hasMultipleArtifactVersions && artifactVersionTab === 'v1' && preRedirectArtifact)
+      ? preRedirectArtifact.trim()
+      : artifactDisplayContent;
+
+  const artifactWordCount = activeDisplayArtifact
+    ? activeDisplayArtifact.split(/\s+/).filter(Boolean).length
     : 0;
 
   // The phone Steer page is rendered from a server page that never reads `searchParams`, so the
@@ -841,6 +878,16 @@ export default function AppShell({ route, id }: AppShellProps) {
     if (!activeRunId) return;
     const instruction = redirectInstruction.trim();
     if (!instruction) return;
+
+    // Preserve existing deliverable as v1 pre-steering answer ONLY if a complete deliverable already existed
+    const currentArtifact = (fetchedArtifactContent || activeRun.artifactContent || '').trim();
+    if (currentArtifact.length > 30) {
+      setPreRedirectArtifacts((prev) => ({
+        ...prev,
+        [activeRunId]: currentArtifact,
+      }));
+    }
+
     const timestamp = Date.now();
     const newStep = {
       step_no: timestamp, // Use timestamp for unique step_no
@@ -872,6 +919,7 @@ export default function AppShell({ route, id }: AppShellProps) {
         step: newStep,
         criterion: newCriterion,
         planStep: newPlanStep,
+        instruction,
       },
     }));
 
@@ -2249,77 +2297,152 @@ export default function AppShell({ route, id }: AppShellProps) {
             </div>
 
             {/* Center Column: Live Timeline */}
-            <div className="glass-panel run-timeline-panel">
-              <div className="panel-title-mono">
-                <span>2. Execution Timeline</span>
-                <span style={{ fontSize: '10px' }}>{activeRun.steps.length} EVENTS</span>
-              </div>
+            {(() => {
+              // Deduplicate steps so identical steering directives never produce multiple cards
+              const timelineSteps = activeRun.steps.filter((st, index, self) => {
+                if (st.tool !== 'human::redirect') return true;
+                const getInst = (s: typeof st) => {
+                  try {
+                    if (s.payload) {
+                      const parsed = JSON.parse(s.payload);
+                      if (parsed.instruction) return parsed.instruction.trim();
+                    }
+                  } catch {}
+                  return (s.reasoning || '')
+                    .replace(/^Human supervisor injected runtime directive:\s*"/, '')
+                    .replace(/^Live operator redirected run:\s*"/, '')
+                    .replace(/"$/, '')
+                    .trim();
+                };
+                const myInst = getInst(st);
+                const firstIdx = self.findIndex((s) => s.tool === 'human::redirect' && getInst(s) === myInst);
+                return index === firstIdx;
+              });
 
-              {activeRun.steps.length === 0 && activeRun.status === 'running' && (
-                <div className="step-card-collapsible" style={{ opacity: 0.95, borderStyle: 'dashed' }}>
-                  <div className="step-card-header">
-                    <div className="step-card-left-info">
-                      <span className="step-no-badge">INIT</span>
-                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>Kernel Engine Boot & gVisor Sandbox</span>
-                    </div>
-                    <span className="step-tool-chip">kernel</span>
+              return (
+                <div className="glass-panel run-timeline-panel">
+                  <div className="panel-title-mono">
+                    <span>2. Execution Timeline</span>
+                    <span style={{ fontSize: '10px' }}>{timelineSteps.length} EVENTS</span>
                   </div>
-                  <div className="step-thought-text" style={{ fontStyle: 'italic', color: 'var(--accent)' }}>
-                    "Autonomous flight loop initialized. Preparing deterministic intent contract..."
-                  </div>
-                </div>
-              )}
 
-              {activeRun.steps.map((st) => (
-                st.tool === 'human::redirect' ? (
-                  <div
-                    key={`${st.step_no}-${st.tool}`}
-                    className="glass-panel"
-                    style={{
-                      marginBottom: '12px',
-                      padding: '16px',
-                      borderRadius: '12px',
-                      background: 'rgba(0, 113, 227, 0.08)',
-                      border: '1px solid rgba(0, 113, 227, 0.25)',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setExpandedStep(expandedStep === st.step_no ? null : st.step_no)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{
-                        minWidth: '32px',
-                        height: '32px',
-                        borderRadius: '50%',
-                        background: 'rgba(0, 113, 227, 0.15)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '14px',
-                      }}>
-                        💬
+                  {timelineSteps.length === 0 && activeRun.status === 'running' && (
+                    <div className="step-card-collapsible" style={{ opacity: 0.95, borderStyle: 'dashed' }}>
+                      <div className="step-card-header">
+                        <div className="step-card-left-info">
+                          <span className="step-no-badge">INIT</span>
+                          <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>Kernel Engine Boot & gVisor Sandbox</span>
+                        </div>
+                        <span className="step-tool-chip">kernel</span>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--accent)', marginBottom: '6px' }}>
-                          Human Steering Directive
-                        </div>
-                        <div style={{
-                          background: 'rgba(255, 255, 255, 0.6)',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          fontSize: '13px',
-                          color: 'var(--text)',
-                          marginBottom: '8px',
-                          fontFamily: 'var(--mono)',
-                        }}>
-                          {st.reasoning.replace(/Human supervisor injected runtime directive: "(.*)"/, '$1')}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
-                          {st.payload}
-                        </div>
+                      <div className="step-thought-text" style={{ fontStyle: 'italic', color: 'var(--accent)' }}>
+                        "Autonomous flight loop initialized. Preparing deterministic intent contract..."
                       </div>
                     </div>
-                  </div>
-                ) : (
+                  )}
+
+                  {timelineSteps.map((st) => (
+                    st.tool === 'human::redirect' ? (() => {
+                      let cleanDirective = st.reasoning || '';
+                      let steerSource = 'console';
+                      let steerTimestamp = '';
+                      try {
+                        if (st.payload) {
+                          const parsed = JSON.parse(st.payload);
+                          if (parsed.instruction) cleanDirective = parsed.instruction;
+                          if (parsed.source) steerSource = parsed.source;
+                          if (parsed.timestamp) steerTimestamp = parsed.timestamp;
+                        }
+                      } catch {}
+                      cleanDirective = cleanDirective
+                        .replace(/^Human supervisor injected runtime directive:\s*"/, '')
+                        .replace(/^Live operator redirected run:\s*"/, '')
+                        .replace(/"$/, '')
+                        .trim();
+
+                      const isExpanded = expandedStep === st.step_no;
+
+                      return (
+                        <div
+                          key={`${st.step_no}-${st.tool}`}
+                          className="glass-panel"
+                          style={{
+                            marginBottom: '12px',
+                            padding: '16px',
+                            borderRadius: '14px',
+                            background: 'rgba(0, 113, 227, 0.08)',
+                            border: '1.5px solid rgba(0, 113, 227, 0.35)',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 16px rgba(0, 113, 227, 0.06)',
+                          }}
+                          onClick={() => setExpandedStep(isExpanded ? null : st.step_no)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                            <div style={{
+                              minWidth: '34px',
+                              height: '34px',
+                              borderRadius: '50%',
+                              background: 'rgba(0, 113, 227, 0.16)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '15px',
+                            }}>
+                              💬
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--accent)', letterSpacing: '-0.01em' }}>
+                                    Human Steering Directive
+                                  </span>
+                                  <span style={{
+                                    fontSize: '10px',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    background: steerSource === 'remote' ? 'rgba(88, 86, 214, 0.15)' : 'rgba(0, 113, 227, 0.15)',
+                                    color: steerSource === 'remote' ? '#5856D6' : 'var(--accent)',
+                                    fontWeight: 600,
+                                    fontFamily: 'var(--mono)',
+                                  }}>
+                                    {steerSource === 'remote' ? '📱 MOBILE STEER' : '💻 CONSOLE OPERATOR'}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '11px', color: 'var(--ok)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>✓</span> Injected
+                                </span>
+                              </div>
+                              <div style={{
+                                background: 'rgba(255, 255, 255, 0.75)',
+                                padding: '10px 14px',
+                                borderRadius: '9px',
+                                fontSize: '13px',
+                                color: 'var(--text)',
+                                lineHeight: 1.5,
+                                border: '1px solid rgba(0, 113, 227, 0.16)',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                              }}>
+                                "{cleanDirective}"
+                              </div>
+                              {isExpanded && (
+                                <div style={{
+                                  marginTop: '8px',
+                                  padding: '8px 10px',
+                                  borderRadius: '6px',
+                                  background: 'rgba(0, 0, 0, 0.04)',
+                                  fontSize: '10.5px',
+                                  fontFamily: 'var(--mono)',
+                                  color: 'var(--text-3)',
+                                }}>
+                                  <div>Timestamp: {steerTimestamp || 'Runtime active'}</div>
+                                  <div>State: Fast-tracked loop adaptation complete</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })() : (
                   <div
                     key={st.step_no}
                     className="step-card-collapsible"
@@ -2371,21 +2494,100 @@ export default function AppShell({ route, id }: AppShellProps) {
                       gap: '8px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span>Delivered Artifact (briefing.md)</span>
                       <span
                         style={{
                           fontSize: '11px',
                           padding: '2px 8px',
                           borderRadius: '12px',
-                          background: 'rgba(52, 199, 89, 0.15)',
-                          color: 'var(--ok)',
+                          background: hasMultipleArtifactVersions && artifactVersionTab === 'v1'
+                            ? 'rgba(0, 113, 227, 0.15)'
+                            : 'rgba(52, 199, 89, 0.15)',
+                          color: hasMultipleArtifactVersions && artifactVersionTab === 'v1'
+                            ? 'var(--accent)'
+                            : 'var(--ok)',
                           fontWeight: 600,
                         }}
                       >
-                        ✓ {artifactWordCount} words
+                        {hasMultipleArtifactVersions
+                          ? artifactVersionTab === 'v1'
+                            ? `✓ v1 · ${artifactWordCount} words`
+                            : artifactVersionTab === 'diff'
+                            ? '⚖️ Diff View'
+                            : `✓ v2 · ${artifactWordCount} words`
+                          : `✓ ${artifactWordCount} words`}
                       </span>
+
+                      {/* Version switcher pills if LLM already completed answer before prompt redirect */}
+                      {hasMultipleArtifactVersions && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            background: 'rgba(0, 0, 0, 0.06)',
+                            borderRadius: '8px',
+                            padding: '2px',
+                            marginLeft: '4px',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setArtifactVersionTab('v2')}
+                            style={{
+                              border: 'none',
+                              background: artifactVersionTab === 'v2' ? '#FFFFFF' : 'transparent',
+                              color: artifactVersionTab === 'v2' ? 'var(--text)' : 'var(--text-3)',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: artifactVersionTab === 'v2' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                            }}
+                            title="View post-steering version"
+                          >
+                            ⚡ v2 (Post)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setArtifactVersionTab('v1')}
+                            style={{
+                              border: 'none',
+                              background: artifactVersionTab === 'v1' ? '#FFFFFF' : 'transparent',
+                              color: artifactVersionTab === 'v1' ? 'var(--text)' : 'var(--text-3)',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: artifactVersionTab === 'v1' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                            }}
+                            title="View pre-steering initial answer"
+                          >
+                            📄 v1 (Pre)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setArtifactVersionTab('diff')}
+                            style={{
+                              border: 'none',
+                              background: artifactVersionTab === 'diff' ? '#FFFFFF' : 'transparent',
+                              color: artifactVersionTab === 'diff' ? 'var(--text)' : 'var(--text-3)',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              boxShadow: artifactVersionTab === 'diff' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                            }}
+                            title="Compare pre vs post steering versions"
+                          >
+                            ⚖️ Diff
+                          </button>
+                        </div>
+                      )}
                     </div>
+
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         className="btn-pill btn-pill-secondary btn-pill-sm"
@@ -2420,17 +2622,62 @@ export default function AppShell({ route, id }: AppShellProps) {
                       padding: '18px 20px',
                     }}
                   >
-                    <pre
-                      style={{
-                        whiteSpace: 'pre-wrap',
-                        fontFamily: 'inherit',
-                        margin: 0,
-                        fontSize: '13.5px',
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {artifactDisplayContent}
-                    </pre>
+                    {hasMultipleArtifactVersions && artifactVersionTab === 'diff' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: 'rgba(0, 0, 0, 0.03)',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                        }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-2)', marginBottom: '6px' }}>
+                            📄 VERSION 1 (PRE-STEERING · INITIAL DRAFT):
+                          </div>
+                          <pre style={{
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'inherit',
+                            margin: 0,
+                            fontSize: '12.5px',
+                            lineHeight: 1.55,
+                            color: 'var(--text-2)',
+                          }}>
+                            {preRedirectArtifact}
+                          </pre>
+                        </div>
+                        <div style={{
+                          padding: '12px',
+                          borderRadius: '8px',
+                          background: 'rgba(52, 199, 89, 0.04)',
+                          border: '1px solid rgba(52, 199, 89, 0.25)',
+                        }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ok)', marginBottom: '6px' }}>
+                            ⚡ VERSION 2 (POST-STEERING · REVISED DELIVERABLE):
+                          </div>
+                          <pre style={{
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'inherit',
+                            margin: 0,
+                            fontSize: '12.5px',
+                            lineHeight: 1.55,
+                            color: 'var(--text)',
+                          }}>
+                            {artifactDisplayContent}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <pre
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          fontFamily: 'inherit',
+                          margin: 0,
+                          fontSize: '13.5px',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {activeDisplayArtifact}
+                      </pre>
+                    )}
                   </div>
 
                   <div
@@ -2443,7 +2690,15 @@ export default function AppShell({ route, id }: AppShellProps) {
                       color: 'var(--text-3)',
                     }}
                   >
-                    <span>Capped preview · Click Maximize for full wide reading</span>
+                    <span>
+                      {hasMultipleArtifactVersions
+                        ? artifactVersionTab === 'v1'
+                          ? 'Showing v1 initial complete answer · Click v2 to view steered version'
+                          : artifactVersionTab === 'diff'
+                          ? 'Comparing pre-steering vs post-steering answers'
+                          : 'Showing v2 steered answer · Click v1 to inspect pre-steering answer'
+                        : 'Capped preview · Click Maximize for full wide reading'}
+                    </span>
                     <button
                       type="button"
                       style={{
@@ -2486,6 +2741,8 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               )}
             </div>
+          );
+        })()}
 
             {/* Right Column: Control & Flight Recorder */}
             {/* Right Column: Control & Flight Recorder */}
@@ -2997,25 +3254,47 @@ export default function AppShell({ route, id }: AppShellProps) {
             </div>
 
             {/* 2. EXECUTION TIMELINE SECTION */}
-            <div className="glass-panel" style={{ padding: '18px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.04em' }}>
-                  2. EXECUTION TIMELINE
-                </span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)' }}>
-                  {activeRun.steps.length} {activeRun.steps.length === 1 ? 'EVENT' : 'EVENTS'}
-                </span>
-              </div>
+            {(() => {
+              const mobileSteps = activeRun.steps.filter((st, index, self) => {
+                if (st.tool !== 'human::redirect') return true;
+                const getInst = (s: typeof st) => {
+                  try {
+                    if (s.payload) {
+                      const parsed = JSON.parse(s.payload);
+                      if (parsed.instruction) return parsed.instruction.trim();
+                    }
+                  } catch {}
+                  return (s.reasoning || '')
+                    .replace(/^Human supervisor injected runtime directive:\s*"/, '')
+                    .replace(/^Live operator redirected run:\s*"/, '')
+                    .replace(/"$/, '')
+                    .trim();
+                };
+                const myInst = getInst(st);
+                const firstIdx = self.findIndex((s) => s.tool === 'human::redirect' && getInst(s) === myInst);
+                return index === firstIdx;
+              });
 
-              {activeRun.steps.length === 0 ? (
-                <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
-                    {activeRun.status === 'running' ? '⏳ Agent starting step loop…' : 'No steps recorded.'}
+              return (
+                <div className="glass-panel" style={{ padding: '18px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                      2. EXECUTION TIMELINE
+                    </span>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--text-3)' }}>
+                      {mobileSteps.length} {mobileSteps.length === 1 ? 'EVENT' : 'EVENTS'}
+                    </span>
                   </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {activeRun.steps.map((st) => {
+
+                  {mobileSteps.length === 0 ? (
+                    <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-2)', fontFamily: 'var(--mono)' }}>
+                        {activeRun.status === 'running' ? '⏳ Agent starting step loop…' : 'No steps recorded.'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {mobileSteps.map((st) => {
                     const isRedirect = st.tool === 'human::redirect';
                     const isExpanded = expandedStep === st.step_no;
 
@@ -3113,6 +3392,8 @@ export default function AppShell({ route, id }: AppShellProps) {
                 </div>
               )}
             </div>
+          );
+        })()}
 
             {/* Deliverable Preview if available */}
             {activeRun.artifactContent && (
@@ -3241,6 +3522,8 @@ export default function AppShell({ route, id }: AppShellProps) {
         content={artifactDisplayContent}
         goal={activeRun.goal}
         onDownload={handleDownload}
+        preRedirectContent={hasMultipleArtifactVersions ? preRedirectArtifact : null}
+        redirectInstruction={activeRun.redirectInstruction || redirectSteps[activeRunId || '']?.instruction || null}
       />
 
       <QrModal

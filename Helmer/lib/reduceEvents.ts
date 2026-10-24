@@ -179,6 +179,8 @@ export function reduceEvents(
   let tokensOut = 0;
   let recoveries = 0;
   let artifactContent: string | undefined;
+  let preRedirectArtifact: string | undefined;
+  let redirectInstruction: string | undefined;
   let incidentReport: string | undefined;
   let tokens: AgentRun['tokens'];
 
@@ -419,19 +421,33 @@ export function reduceEvents(
       case EVENT_TYPE.redirected: {
         const newInstruction = str(payload.new_instruction);
         if (newInstruction) {
-          // Add a human redirect step to timeline so remote/phone redirects appear immediately
-          const redirectStepNo = 900 + steps.size;
-          const redirectStep = emptyAccumulator(redirectStepNo);
-          redirectStep.title = `🔄 Operator Directive (${str(payload.source, 'Remote')})`;
-          redirectStep.tool = 'human::redirect';
-          redirectStep.ms = 12;
-          redirectStep.reasoning = `Live operator redirected run: "${newInstruction}"`;
-          redirectStep.payload = {
-            instruction: newInstruction,
-            source: str(payload.source, 'remote'),
-            timestamp: new Date(event.ts).toISOString(),
-          };
-          steps.set(redirectStepNo, redirectStep);
+          redirectInstruction = newInstruction;
+          // If a complete deliverable already existed prior to this redirect, save it as pre-steering version
+          if (artifactContent && artifactContent.trim().length > 30 && !preRedirectArtifact) {
+            preRedirectArtifact = artifactContent;
+          }
+
+          // Check if an identical redirect step already exists in accumulator to prevent duplicate cards
+          const isDuplicate = Array.from(steps.values()).some((s) => {
+            if (s.tool !== 'human::redirect') return false;
+            const existingInst = String((s.payload as any)?.instruction || s.reasoning || '').trim().toLowerCase();
+            return existingInst === newInstruction.trim().toLowerCase() || existingInst.includes(newInstruction.trim().toLowerCase());
+          });
+
+          if (!isDuplicate) {
+            const redirectStepNo = 900 + steps.size;
+            const redirectStep = emptyAccumulator(redirectStepNo);
+            redirectStep.title = `Human Steering Directive`;
+            redirectStep.tool = 'human::redirect';
+            redirectStep.ms = 12;
+            redirectStep.reasoning = `Live operator redirected run: "${newInstruction}"`;
+            redirectStep.payload = {
+              instruction: newInstruction,
+              source: str(payload.source, 'Live Operator'),
+              timestamp: new Date(event.ts).toISOString(),
+            };
+            steps.set(redirectStepNo, redirectStep);
+          }
 
           // Adapt wordRange criteria dynamically
           const wordMatch = newInstruction.match(
@@ -524,6 +540,8 @@ export function reduceEvents(
   };
 
   if (artifactContent) run.artifactContent = artifactContent;
+  if (preRedirectArtifact) run.preRedirectArtifact = preRedirectArtifact;
+  if (redirectInstruction) run.redirectInstruction = redirectInstruction;
   if (incidentReport) run.incidentReport = incidentReport;
   if (tokens) run.tokens = tokens;
   if (recoveries > 0) run.recoveries = recoveries;

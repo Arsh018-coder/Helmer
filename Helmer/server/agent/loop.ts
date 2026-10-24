@@ -266,8 +266,9 @@ async function composeDeliverable(input: {
   notes: string;
   stepNo: number;
   instruction?: string | null;
+  existingArtifact?: string | null;
 }): Promise<Deliverable> {
-  const { llm, ctx, goal, contract, notes, stepNo, instruction } = input;
+  const { llm, ctx, goal, contract, notes, stepNo, instruction, existingArtifact } = input;
   const name = deliverableName(contract);
   const activeCriteria = adaptCriteriaForInstruction(contract.criteria, instruction);
   const markdown = await llm.text(
@@ -276,6 +277,7 @@ async function composeDeliverable(input: {
       activeCriteria.map((criterion) => criterion.text),
       notes,
       instruction,
+      existingArtifact,
     ),
   );
   const result = await runTool({
@@ -330,6 +332,17 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     await handleCommands(ctx, state);
     if (state.stopRequested) break;
 
+    // Fast-track: if operator injected a redirect directive and we already have a deliverable
+    // or notes, immediately exit step loop and compose the final deliverable in seconds.
+    if (state.instruction && (deliverable.content || stepNo >= 2)) {
+      log.info('operator directive active; fast-tracking immediately to final deliverable', {
+        runId,
+        stepNo,
+        hasDeliverable: Boolean(deliverable.content),
+      });
+      break;
+    }
+
     // Budgets are checked before spending anything, so the run always has room to finish cleanly.
     if (Date.now() >= ctx.deadline) break;
     if (llm.calls > budget.maxLlmCalls - LLM_RESERVE_CALLS) break;
@@ -380,6 +393,19 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     await handleCommands(ctx, state);
     if (state.stopRequested) break;
 
+    // Fast-track: if operator injected a redirect directive and we already have a deliverable
+    // or sufficient notes, immediately advance to compose the updated deliverable in seconds.
+    if (state.instruction) {
+      if (deliverable.content || stepNo >= 2) {
+        log.info('operator directive active; fast-tracking to compose final deliverable', {
+          runId,
+          stepNo,
+          hasExistingDeliverable: Boolean(deliverable.content),
+        });
+        break;
+      }
+    }
+
     if (!outcome.result) {
       // Ladder exhausted: the tool is out of play for the rest of the run (rung 3 already logged).
       disabledTools.add(action.tool);
@@ -416,6 +442,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   // Re-compose if empty OR if operator injected an instruction mid-flight
   if (!deliverable.name || !deliverable.content || Boolean(state.instruction)) {
     try {
+      const priorArtifact = deliverable.content;
       deliverable = await composeDeliverable({
         llm,
         ctx,
@@ -424,6 +451,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
         notes,
         stepNo: finalStepNo,
         instruction: state.instruction,
+        existingArtifact: priorArtifact,
       });
     } catch (error) {
       log.warn('could not compose a deliverable; verifying an empty result', {
