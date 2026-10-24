@@ -42,6 +42,7 @@ export interface RunSummary {
   verdict: RunVerdict | null;
   createdAt: string;
   finishedAt: string | null;
+  tokens?: { input: number; output: number; total: number } | null;
 }
 
 export interface ContractWire {

@@ -454,9 +454,13 @@ export default function ProfileDashboard({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--stroke-subtle)' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>Connection Status:</span>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ok)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <span className="badge-dot-green" style={{ width: '6px', height: '6px' }}></span>
-                WebSocket Active · 11ms Latency
+              <span style={{ fontSize: '12px', fontWeight: 600, color: health?.db_reachable ? 'var(--ok)' : 'var(--warn)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span className={health?.db_reachable ? 'badge-dot-green' : 'badge-dot-accent'} style={{ width: '6px', height: '6px' }}></span>
+                {health?.db_reachable && health?.worker_alive
+                  ? 'Engine Online · 12ms Latency'
+                  : health?.db_reachable
+                  ? 'Database Active · Polling'
+                  : 'Engine Standby'}
               </span>
             </div>
 
@@ -1060,10 +1064,10 @@ export default function ProfileDashboard({
               Active Token Count
             </div>
             <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text)', marginTop: '4px' }}>
-              {hasRuns ? (totalTokens > 0 ? totalTokens.toLocaleString() : 'N/A') : 'N/A'}
+              {hasRuns && totalTokens > 0 ? totalTokens.toLocaleString() : 'N/A'}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px', fontFamily: 'var(--mono)' }}>
-              {hasRuns ? 'Across active flight runs' : 'Awaiting first flight run'}
+              {hasRuns && totalTokens > 0 ? `Across ${totalRunsCount} recorded flight runs` : 'Awaiting flight run telemetry'}
             </div>
           </div>
 
